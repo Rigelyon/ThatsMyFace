@@ -2,6 +2,7 @@ import numpy as np
 from deepface import DeepFace
 import cv2
 from typing import Optional, List, Tuple
+from scipy import spatial  # Add this import
 
 # Settings for face recognition
 FACE_DETECTION_MODEL = "opencv"  # Options: opencv, ssd, dlib, mtcnn, retinaface, mediapipe
@@ -23,7 +24,7 @@ def detect_faces(image: np.ndarray) -> List[dict]:
         faces = DeepFace.extract_faces(
             image,
             detector_backend=FACE_DETECTION_MODEL,
-            enforce_detection=True
+            enforce_detection=False
         )
         return faces
     except Exception as e:
@@ -59,51 +60,32 @@ def get_face_embedding(image: np.ndarray) -> Optional[np.ndarray]:
         print(f"Error getting face embedding: {str(e)}")
         return None
 
-def check_face_match(image: np.ndarray, reference_embedding: np.ndarray) -> bool:
+def check_face_match(image: np.ndarray, reference_image: np.ndarray) -> bool:
     """
-    Check if the image contains a face that matches the reference embedding
+    Check if the image contains a face that matches the reference image
 
     Args:
         image: numpy array containing the target image
-        reference_embedding: face embedding vector to compare against
+        reference_image: numpy array containing the reference face image
 
     Returns:
         True if matching face found, False otherwise
     """
     try:
-        # Get embeddings for all faces in the image
-        image_embeddings = []
-        faces = detect_faces(image)
-
-        if not faces:
-            return False
-
-        # Process each detected face
-        for face in faces:
-            # Get the face region
-            face_region = face["face"]
-            if face_region is not None:
-                # Get embedding for this face
-                embedding_obj = DeepFace.represent(
-                    face_region,
-                    model_name=EMBEDDING_MODEL,
-                    detector_backend=FACE_DETECTION_MODEL,
-                    enforce_detection=False,
-                    align=True,
-                    normalization="base"
-                )
-
-                if isinstance(embedding_obj, list) and len(embedding_obj) > 0:
-                    embedding = np.array(embedding_obj[0]["embedding"])
-                    image_embeddings.append(embedding)
-
-        # Check if any face matches the reference
-        for embedding in image_embeddings:
-            similarity = calculate_similarity(embedding, reference_embedding)
-            if similarity > SIMILARITY_THRESHOLD:
-                return True
-
-        return False
+        # Use DeepFace.verify to directly compare faces
+        verification_result = DeepFace.verify(
+            img1_path=reference_image,
+            img2_path=image,
+            model_name=EMBEDDING_MODEL,
+            detector_backend=FACE_DETECTION_MODEL,
+            distance_metric=DISTANCE_METRIC,
+            enforce_detection=False,
+            align=True,
+            normalization="base"
+        )
+        
+        # Return verification result
+        return verification_result["verified"]
     except Exception as e:
         print(f"Error checking face match: {str(e)}")
         return False
