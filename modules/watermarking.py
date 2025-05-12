@@ -4,6 +4,7 @@ import cv2
 from typing import Union, Optional, Tuple, List
 import base64
 import io
+import os
 
 # Constants for watermarking
 BLOCK_SIZE = 8
@@ -160,7 +161,11 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
     width_crop = width - (width % BLOCK_SIZE)
     y_channel_cropped = y_channel[:height_crop, :width_crop]
 
-    print(f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}")
+    # Check if debug mode is enabled via environment variable
+    debug_enabled = os.environ.get('WATERMARK_DEBUG', '0') == '1'
+
+    if debug_enabled:
+        print(f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}")
 
     # First extract 32 bits to determine watermark length
     extracted_bits = ""
@@ -195,18 +200,22 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
         if len(extracted_bits) >= length_bits_needed:
             break
 
-    print(f"DEBUG: Extracted length bits: {extracted_bits}")
+    if debug_enabled:
+        print(f"DEBUG: Extracted length bits: {extracted_bits}")
 
     # Parse watermark length
     try:
         watermark_length = int(extracted_bits[:length_bits_needed], 2)
-        print(f"DEBUG: Parsed watermark length: {watermark_length} bits")
+        if debug_enabled:
+            print(f"DEBUG: Parsed watermark length: {watermark_length} bits")
     except ValueError:
-        print(f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}")
+        if debug_enabled:
+            print(f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}")
         return None
 
     if watermark_length <= 0 or watermark_length > 1000000:  # Sanity check
-        print(f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)")
+        if debug_enabled:
+            print(f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)")
         return None
 
     # Continue extracting watermark bits
