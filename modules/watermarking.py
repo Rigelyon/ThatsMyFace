@@ -4,6 +4,7 @@ import cv2
 from typing import Union, Optional, Tuple, List
 import base64
 import io
+import os
 
 # Constants for watermarking
 BLOCK_SIZE = 8
@@ -160,6 +161,12 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
     width_crop = width - (width % BLOCK_SIZE)
     y_channel_cropped = y_channel[:height_crop, :width_crop]
 
+    # Check if debug mode is enabled via environment variable
+    debug_enabled = os.environ.get('WATERMARK_DEBUG', '0') == '1'
+
+    if debug_enabled:
+        print(f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}")
+
     # First extract 32 bits to determine watermark length
     extracted_bits = ""
     length_bits_needed = 32
@@ -193,13 +200,22 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
         if len(extracted_bits) >= length_bits_needed:
             break
 
+    if debug_enabled:
+        print(f"DEBUG: Extracted length bits: {extracted_bits}")
+
     # Parse watermark length
     try:
         watermark_length = int(extracted_bits[:length_bits_needed], 2)
+        if debug_enabled:
+            print(f"DEBUG: Parsed watermark length: {watermark_length} bits")
     except ValueError:
+        if debug_enabled:
+            print(f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}")
         return None
 
     if watermark_length <= 0 or watermark_length > 1000000:  # Sanity check
+        if debug_enabled:
+            print(f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)")
         return None
 
     # Continue extracting watermark bits
@@ -256,3 +272,67 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
         return watermark_data
     except Exception:
         return None
+    
+def detect_watermark(image: Image.Image) -> bool:
+    """
+    Detect if an image likely contains a watermark created by this application.
+    This is a statistical test rather than a guaranteed detection.
+
+    Args:
+        image: PIL Image to check
+
+    Returns:
+        Boolean indicating if image likely contains a watermark
+    """
+    # Convert PIL Image to numpy array
+    img_array = np.array(image)
+
+    # Convert to YCrCb color space if image is RGB
+    if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
+        img_ycrcb = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
+        y_channel = img_ycrcb[:, :, 0].copy()
+    else:
+        y_channel = img_array.copy()
+
+    # Ensure dimensions are multiples of block size
+    height, width = y_channel.shape
+    height_crop = height - (height % BLOCK_SIZE)
+    width_crop = width - (width % BLOCK_SIZE)
+    y_channel_cropped = y_channel[:height_crop, :width_crop]
+
+    # Sample blocks to analyze singular value distribution
+    modified_blocks = 0
+    total_blocks = 0
+    max_blocks_to_check = 100  # Limit check to 100 blocks for performance
+
+    # Check random blocks
+    blocks_to_check = min(height_crop * width_crop // (BLOCK_SIZE * BLOCK_SIZE), max_blocks_to_check)
+
+    for _ in range(blocks_to_check):
+        # Pick random block
+        y = np.random.randint(0, height_crop - BLOCK_SIZE + 1)
+        x = np.random.randint(0, width_crop - BLOCK_SIZE + 1)
+
+        # Get block
+        block = y_channel_cropped[y:y+BLOCK_SIZE, x:x+BLOCK_SIZE]
+
+        # Apply DCT
+        dct_block = dct_transform(block)
+
+        # Apply SVD
+        U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
+
+        # Check if second singular value is close to multiple of ALPHA
+        if len(S) > 1:
+            mod_index = 1  # Use second singular value
+            remainder = S[mod_index] % ALPHA
+
+            # If remainder is very close to 0 or ALPHA, likely modified
+            if remainder < 0.01 * ALPHA or remainder > 0.99 * ALPHA:
+                modified_blocks += 1
+
+        total_blocks += 1
+
+    # If more than 30% of blocks show pattern of modification, likely watermarked
+    watermark_probability = modified_blocks / total_blocks if total_blocks > 0 else 0
+    return watermark_probability > 0.3

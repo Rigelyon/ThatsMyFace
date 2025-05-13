@@ -6,7 +6,7 @@ import io
 import time
 from deepface import DeepFace
 from modules.face_recognition import get_face_embedding, check_face_match
-from modules.watermarking import embed_watermark, extract_watermark
+from modules.watermarking import embed_watermark, extract_watermark, detect_watermark
 from modules.encryption import generate_key_from_embedding, encrypt_watermark, decrypt_watermark
 from modules.utils import load_image, save_image, convert_to_bytes
 
@@ -51,6 +51,15 @@ process_choice = st.sidebar.radio(
     ["Embed Watermark", "Extract Watermark"]
 )
 
+# Debug mode toggle
+st.sidebar.markdown("---")
+debug_mode = st.sidebar.checkbox("Enable Debug Mode", value=False)
+if debug_mode:
+    st.sidebar.info("Debug mode is enabled. Additional technical information will be displayed.")
+    os.environ['WATERMARK_DEBUG'] = '1'
+else:
+    os.environ['WATERMARK_DEBUG'] = '0'
+
 # Main application flow
 if process_choice == "Embed Watermark":
     st.header("Embed Watermark")
@@ -89,13 +98,27 @@ if process_choice == "Embed Watermark":
             try:
                 # Process the authentication face
                 auth_image = Image.open(auth_face)
-                embedding = get_face_embedding(np.array(auth_image))
+                auth_image_array = np.array(auth_image)
+
+                # Get embedding for encryption key generation
+                embedding = get_face_embedding(auth_image_array)
 
                 if embedding is None:
                     st.error("Could not detect a face in the authentication image.")
                 else:
                     # Generate encryption key from face embedding
                     encryption_key = generate_key_from_embedding(embedding)
+
+                    # Debug: Show key information if debug mode is enabled
+                    if debug_mode:
+                        st.write("DEBUG: Embedding key (first 8 bytes hex):", encryption_key[:8].hex())
+                        st.write("DEBUG: Embedding face stats:", {
+                            'mean': float(np.mean(embedding)),
+                            'std': float(np.std(embedding)),
+                            'min': float(np.min(embedding)),
+                            'max': float(np.max(embedding)),
+                            'shape': embedding.shape
+                        })
 
                     # Prepare watermark data
                     if watermark_file.type.startswith('text'):
@@ -125,7 +148,7 @@ if process_choice == "Embed Watermark":
                         # Check if authentication is required and image contains matching face
                         should_watermark = True
                         if auth_required:
-                            should_watermark = check_face_match(np.array(img), embedding)
+                            should_watermark = check_face_match(np.array(img), auth_image_array)
 
                         # Apply watermark if conditions are met
                         if should_watermark:
@@ -150,7 +173,7 @@ if process_choice == "Embed Watermark":
                             for i, (name, img) in enumerate(watermarked):
                                 col_idx = i % len(cols)
                                 with cols[col_idx]:
-                                    st.image(img, caption=name, use_column_width=True)
+                                    st.image(img, caption=name, use_container_width=True)
 
                                     # Save button for each image
                                     img_bytes = io.BytesIO()
@@ -159,7 +182,8 @@ if process_choice == "Embed Watermark":
                                         label="Download",
                                         data=img_bytes.getvalue(),
                                         file_name=f"watermarked_{name}",
-                                        mime="image/png"
+                                        mime="image/png",
+                                        key=f"download_btn_{i}"
                                     )
 
                         # List images that were not watermarked
@@ -187,7 +211,10 @@ elif process_choice == "Extract Watermark":
         try:
             # Process the authentication face
             auth_image = Image.open(auth_face)
-            embedding = get_face_embedding(np.array(auth_image))
+            auth_image_array = np.array(auth_image)
+
+            # Get embedding for encryption key generation
+            embedding = get_face_embedding(auth_image_array)
 
             if embedding is None:
                 st.error("Could not detect a face in the authentication image.")
@@ -195,11 +222,33 @@ elif process_choice == "Extract Watermark":
                 # Generate encryption key from face embedding
                 encryption_key = generate_key_from_embedding(embedding)
 
+                # Debug: Show key information
+                if debug_mode:
+                    st.write("DEBUG: Authentication key (first 8 bytes hex):", encryption_key[:8].hex())
+                    st.write("DEBUG: Authentication face embedding stats:", {
+                        'mean': float(np.mean(embedding)),
+                        'std': float(np.std(embedding)),
+                        'min': float(np.min(embedding)),
+                        'max': float(np.max(embedding)),
+                        'shape': embedding.shape
+                    })
+
                 # Extract watermark
                 watermarked_img = Image.open(watermarked_file)
+
+                # First detect if image likely contains a watermark
+                has_watermark = detect_watermark(watermarked_img)
+                if has_watermark:
+                    st.write("Image appears to contain a watermark.")
+
+                if debug_mode:
+                    st.write("DEBUG: Attempting to extract watermark...")
                 encrypted_watermark = extract_watermark(watermarked_img)
 
                 if encrypted_watermark:
+                    if debug_mode:
+                        st.write("DEBUG: Watermark extraction successful! Length:", len(encrypted_watermark))
+
                     # Decrypt watermark
                     try:
                         watermark_data = decrypt_watermark(encrypted_watermark, encryption_key)
@@ -215,13 +264,19 @@ elif process_choice == "Extract Watermark":
                             try:
                                 watermark_img = Image.open(io.BytesIO(watermark_data))
                                 st.success("Watermark extracted successfully!")
-                                st.image(watermark_img, caption="Extracted Watermark (Image)")
+                                st.image(watermark_img, caption="Extracted Watermark (Image)", use_container_width=True)
                             except Exception:
                                 st.error("Could not interpret the extracted watermark as text or image.")
                     except Exception:
                         st.error("Failed to decrypt the watermark. The authentication face may not match the one used for embedding.")
                 else:
-                    st.error("Could not extract a watermark from this image.")
+                    st.error("Could not extract a watermark from this image. This usually means either:")
+                    st.markdown("""
+                    - The image doesn't contain a watermark
+                    - The image wasn't watermarked with this application
+                    - The image was modified after watermarking (resized, cropped, compressed)
+                    - You're not using the same authentication face that was used for embedding
+                    """)
 
         except Exception as e:
             st.error(f"An error occurred during extraction: {str(e)}")
