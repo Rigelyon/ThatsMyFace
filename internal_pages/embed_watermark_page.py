@@ -3,9 +3,11 @@ from PIL import Image
 import numpy as np
 import io
 import time
+import os
 from modules.watermarking import embed_watermark
 from modules.face_recognition import get_face_embedding, check_face_match
-from modules.encryption import generate_key_from_embedding, encrypt_watermark
+from modules.encryption import generate_key_with_helper, encrypt_watermark
+from modules.fuzzy_extractor import save_helper_data, serialize_helper_data
 from modules.utils import has_face, convert_to_bytes
 from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE
 
@@ -17,17 +19,27 @@ def display_embed_watermark_page(debug_mode=False):
     auth_face = st.file_uploader("Upload a clear image of the face for authentication",
                                  type=["jpg", "jpeg", "png"])
 
-    st.subheader("2. Upload Watermark")
+    # Added error tolerance slider
+    st.subheader("2. Authentication Settings")
+    error_tolerance = st.slider(
+        "Error Tolerance (higher values allow more variation in face images)",
+        min_value=10,
+        max_value=200,
+        value=50,
+        help="Higher values make authentication more flexible but potentially less secure"
+    )
+
+    st.subheader("3. Upload Watermark")
     watermark_file = st.file_uploader("Upload watermark (text file recommended)",
                                       type=["txt", "jpg", "jpeg", "png"])
 
-    st.subheader("3. Upload Images to Watermark")
+    st.subheader("4. Upload Images to Watermark")
     uploaded_files = st.file_uploader("Upload images (max 10 files)",
                                       type=["jpg", "jpeg", "png"],
                                       accept_multiple_files=True)
 
     # Authentication option
-    st.subheader("4. Watermarking Options")
+    st.subheader("5. Watermarking Options")
     auth_required = st.checkbox("Only watermark images containing the authentication face")
 
     if st.button("Process Images", disabled=not (auth_face and watermark_file and uploaded_files)):
@@ -54,8 +66,8 @@ def display_embed_watermark_page(debug_mode=False):
                 if embedding is None:
                     st.error("Could not detect a face in the authentication image.")
                 else:
-                    # Generate encryption key from face embedding
-                    encryption_key = generate_key_from_embedding(embedding)
+                    # Generate encryption key and helper data using fuzzy extractor
+                    encryption_key, helper_data = generate_key_with_helper(embedding, error_tolerance)
 
                     # Debug: Show key information if debug mode is enabled
                     if debug_mode:
@@ -65,7 +77,8 @@ def display_embed_watermark_page(debug_mode=False):
                             'std': float(np.std(embedding)),
                             'min': float(np.min(embedding)),
                             'max': float(np.max(embedding)),
-                            'shape': embedding.shape
+                            'shape': embedding.shape,
+                            'error_tolerance': error_tolerance
                         })
 
                     # Prepare watermark data
@@ -84,6 +97,14 @@ def display_embed_watermark_page(debug_mode=False):
                     results_container = st.container()
                     watermarked = []
                     not_watermarked = []
+
+                    # Create directory for helper files if it doesn't exist
+                    if not os.path.exists("output/helpers"):
+                        os.makedirs("output/helpers")
+
+                    # Save helper data to a file
+                    helper_filename = f"output/helpers/helper_data_{int(time.time())}.bin"
+                    save_helper_data(helper_data, helper_filename)
 
                     for i, uploaded_file in enumerate(uploaded_files[:MAX_IMAGES]):
                         status_text.text(f"Processing image {i+1}/{len(uploaded_files[:MAX_IMAGES])}...")
@@ -112,6 +133,21 @@ def display_embed_watermark_page(debug_mode=False):
 
                     with results_container:
                         st.subheader("Results")
+
+                        # Download helper data file
+                        with open(helper_filename, "rb") as file:
+                            helper_data_bytes = file.read()
+
+                        st.download_button(
+                            label="⬇️ Download Helper Data File (IMPORTANT)",
+                            data=helper_data_bytes,
+                            file_name=os.path.basename(helper_filename),
+                            mime="application/octet-stream",
+                            help="This file is required to extract watermarks later. Keep it safe!",
+                            key="download_helper"
+                        )
+
+                        st.info("⚠️ **IMPORTANT:** Download and keep the helper data file. You will need it to extract watermarks later, even from different photos of the same person.")
 
                         # Display watermarked images
                         if watermarked:

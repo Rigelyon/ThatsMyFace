@@ -5,11 +5,12 @@ A Streamlit application for watermarking images using facial recognition, DCT (D
 ## Features
 
 - Facial recognition-based authentication using DeepFace
+- Fuzzy extractor technology for consistent key generation from different face images
 - DCT and SVD-based watermarking
 - AES encryption for watermark security
 - Option to watermark only images containing a specific face
 - Support for text and image watermarks
-- Watermark extraction capability
+- Watermark extraction capability with helper data
 
 ## Installation
 
