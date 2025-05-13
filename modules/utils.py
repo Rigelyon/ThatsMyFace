@@ -4,6 +4,9 @@ from PIL import Image
 import io
 from typing import Union, Optional, Tuple
 
+from deepface import DeepFace
+
+
 def load_image(path: str) -> Optional[Image.Image]:
     """
     Load an image from file path
@@ -132,3 +135,20 @@ def is_image_valid(image: Optional[Union[Image.Image, np.ndarray]]) -> bool:
         return image.size > 0 and len(image.shape) >= 2
 
     return False
+
+def has_face(image):
+    """
+    Analyzes the given image and detects if it contains any human faces.
+
+    Args:
+        image: Input image to be analyzed. It should be compatible with image processing libraries like a PIL Image or NumPy array.
+
+    Returns:
+        True if one or more human faces are detected, False otherwise.
+    """
+    try:
+        img_array = np.array(image)
+        faces = DeepFace.extract_faces(img_array, enforce_detection=True)
+        return len(faces) > 0
+    except Exception:
+        return False
