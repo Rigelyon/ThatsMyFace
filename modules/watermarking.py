@@ -1,15 +1,14 @@
+import streamlit as st
 import numpy as np
 from PIL import Image
 import cv2
-from typing import Union, Optional, Tuple, List
+from typing import Optional
 import base64
-import io
-import os
 
-# Constants for watermarking
-BLOCK_SIZE = 8
-ALPHA = 0.1  # Strength of watermark (lower means less visible)
-MAX_SVD_COEFFICIENTS = 10  # Number of singular values to modify
+from modules.constants import BLOCK_SIZE, ALPHA
+
+# Check if debug mode is enabled via session_state
+debug_mode = st.session_state.get("debug_mode", False)
 
 def dct_transform(block: np.ndarray) -> np.ndarray:
     """
@@ -161,11 +160,8 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
     width_crop = width - (width % BLOCK_SIZE)
     y_channel_cropped = y_channel[:height_crop, :width_crop]
 
-    # Check if debug mode is enabled via environment variable
-    debug_enabled = os.environ.get('WATERMARK_DEBUG', '0') == '1'
-
-    if debug_enabled:
-        print(f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}")
+    if debug_mode:
+        st.error(f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}")
 
     # First extract 32 bits to determine watermark length
     extracted_bits = ""
@@ -200,22 +196,22 @@ def extract_watermark(image: Image.Image) -> Optional[bytes]:
         if len(extracted_bits) >= length_bits_needed:
             break
 
-    if debug_enabled:
-        print(f"DEBUG: Extracted length bits: {extracted_bits}")
+    if debug_mode:
+        st.error(f"DEBUG: Extracted length bits: {extracted_bits}")
 
     # Parse watermark length
     try:
         watermark_length = int(extracted_bits[:length_bits_needed], 2)
-        if debug_enabled:
-            print(f"DEBUG: Parsed watermark length: {watermark_length} bits")
+        if debug_mode:
+            st.error(f"DEBUG: Parsed watermark length: {watermark_length} bits")
     except ValueError:
-        if debug_enabled:
-            print(f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}")
+        if debug_mode:
+            st.error(f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}")
         return None
 
     if watermark_length <= 0 or watermark_length > 1000000:  # Sanity check
-        if debug_enabled:
-            print(f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)")
+        if debug_mode:
+            st.error(f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)")
         return None
 
     # Continue extracting watermark bits

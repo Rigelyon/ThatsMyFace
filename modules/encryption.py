@@ -2,7 +2,6 @@ import numpy as np
 import hashlib
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-import base64
 from typing import Union, Optional
 
 def generate_key_from_embedding(embedding: np.ndarray) -> bytes:
