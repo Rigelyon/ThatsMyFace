@@ -80,23 +80,6 @@ streamlit run app.py
 - **Maximum Files**: 10 images per process
 - **Maximum Watermark Size**: 1KB
 
-## File Structure
-
-```
-thats-my-face/
-├── app.py                   # Main Streamlit application
-├── modules/
-│   ├── __init__.py          # Package initializer
-│   ├── face_recognition.py  # Face detection and recognition functions
-│   ├── watermarking.py      # DCT-SVD watermarking implementation
-│   ├── encryption.py        # AES encryption/decryption functions
-│   └── utils.py             # Utility functions
-├── temp/                    # Temporary storage directory
-├── output/                  # Output directory for processed images
-├── requirements.txt         # Python dependencies
-└── README.md                # This file
-```
-
 ## Limitations
 
 - Face recognition accuracy depends on image quality
