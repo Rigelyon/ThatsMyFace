@@ -1,14 +1,9 @@
 import numpy as np
 from deepface import DeepFace
-import cv2
-from typing import Optional, List, Tuple
-from scipy import spatial  # Add this import
+from typing import Optional, List
+from scipy import spatial
 
-# Settings for face recognition
-FACE_DETECTION_MODEL = "opencv"  # Options: opencv, ssd, dlib, mtcnn, retinaface, mediapipe
-EMBEDDING_MODEL = "Facenet512"  # Options: VGG-Face, Facenet, Facenet512, OpenFace, DeepFace, DeepID
-DISTANCE_METRIC = "cosine"  # Options: cosine, euclidean, euclidean_l2
-SIMILARITY_THRESHOLD = 0.5  # Threshold for face similarity (lower means more strict)
+from modules.constants import FACE_DETECTION_MODEL, EMBEDDING_MODEL, DISTANCE_METRIC
 
 def detect_faces(image: np.ndarray) -> List[dict]:
     """
