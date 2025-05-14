@@ -5,7 +5,8 @@ import time
 
 from modules.utils import has_face
 from modules.face_recognition import get_face_embedding
-from modules.encryption import generate_key_from_embedding, encrypt_watermark, decrypt_watermark
+from modules.encryption import generate_key_with_helper, regenerate_key_from_helper, encrypt_watermark, decrypt_watermark
+from modules.fuzzy_extractor import serialize_helper_data, deserialize_helper_data
 
 
 def display_test_development_page(debug_mode=False):
@@ -52,6 +53,15 @@ def display_test_development_page(debug_mode=False):
     st.markdown("### Text to Encrypt")
     plaintext = st.text_area("Enter text to encrypt:", height=100)
     
+    # Error tolerance slider for fuzzy extractor
+    error_tolerance = st.slider(
+        "Error Tolerance (higher values allow more variation in face images)",
+        min_value=10,
+        max_value=200,
+        value=50,
+        help="Higher values make authentication more flexible but potentially less secure"
+    )
+    
     # Run test button
     if st.button("Run Encryption Test", disabled=not(face1_file and face2_file and plaintext)):
         with st.spinner("Running test..."):
@@ -72,11 +82,12 @@ def display_test_development_page(debug_mode=False):
             if embedding1 is None or embedding2 is None:
                 st.error("Failed to extract face embeddings from one or both images")
             else:
-                # Generate encryption keys from embeddings
-                key1 = generate_key_from_embedding(embedding1)
-                key2 = generate_key_from_embedding(embedding2)
+                # Generate encryption key and helper data from the first embedding
+                start_time = time.time()
+                key1, helper_data = generate_key_with_helper(embedding1, error_tolerance)
+                key_generation_time = time.time() - start_time
                 
-                # Debug info
+                # Debug info for embeddings
                 if debug_mode:
                     st.write("Face 1 embedding stats:", {
                         'mean': float(np.mean(embedding1)),
@@ -93,20 +104,47 @@ def display_test_development_page(debug_mode=False):
                         'shape': embedding2.shape
                     })
                     st.write("Key 1 (first 8 bytes):", key1[:8].hex())
-                    st.write("Key 2 (first 8 bytes):", key2[:8].hex())
+                    
+                    # Show helper data info
+                    st.write("Helper data info:", {
+                        'error_tolerance': helper_data.get('error_tolerance'),
+                        'vector_shape': helper_data.get('vector_shape'),
+                        'vector_mean': helper_data.get('vector_mean'),
+                        'vector_std': helper_data.get('vector_std')
+                    })
                 
                 # Encrypt with first face
                 start_time = time.time()
                 encrypted_data = encrypt_watermark(plaintext, key1)
                 encryption_time = time.time() - start_time
                 
+                # Regenerate key from second face using helper data
+                start_time = time.time()
+                key2 = regenerate_key_from_helper(embedding2, helper_data)
+                key_regeneration_time = time.time() - start_time
+                
+                if debug_mode and key2 is not None:
+                    st.write("Regenerated Key 2 (first 8 bytes):", key2[:8].hex())
+                
                 # Try to decrypt with second face
                 start_time = time.time()
-                decrypted_data = decrypt_watermark(encrypted_data, key2)
+                decrypted_data = decrypt_watermark(encrypted_data, key2) if key2 is not None else None
                 decryption_time = time.time() - start_time
                 
                 # Display results
                 st.subheader("Test Results")
+                
+                # Helper data download
+                helper_data_bytes = serialize_helper_data(helper_data)
+                st.download_button(
+                    label="⬇️ Download Helper Data",
+                    data=helper_data_bytes,
+                    file_name=f"helper_data_test.bin",
+                    mime="application/octet-stream",
+                    help="This file contains the helper data needed for authentication with fuzzy extractor"
+                )
+                
+                st.info("The helper data file is required for decryption with any face image, even if it's the same person. It contains error correction data but not the secret key itself.")
                 
                 # Check if decryption was successful
                 if decrypted_data is not None:
@@ -125,15 +163,22 @@ def display_test_development_page(debug_mode=False):
                     except UnicodeDecodeError:
                         st.error("❌ TEST FAILED: Data was decrypted but couldn't be converted to text")
                 else:
-                    st.error("❌ TEST FAILED: Could not decrypt the text with the second face")
+                    if key2 is None:
+                        st.error("❌ TEST FAILED: Could not regenerate the key from the second face")
+                        st.info("This usually means the face images are too different, or the error tolerance is too low. Try increasing the error tolerance or using more similar images.")
+                    else:
+                        st.error("❌ TEST FAILED: Could not decrypt the text with the second face")
                 
                 # Performance metrics
                 if debug_mode:
                     st.subheader("Performance Metrics")
                     st.info(f"Time to extract face embeddings: {embedding_time:.4f} seconds")
+                    st.info(f"Time to generate key with helper data: {key_generation_time:.4f} seconds")
                     st.info(f"Time to encrypt: {encryption_time:.4f} seconds")
+                    st.info(f"Time to regenerate key from helper data: {key_regeneration_time:.4f} seconds")
                     st.info(f"Time to decrypt: {decryption_time:.4f} seconds")
                     st.info(f"Encrypted data size: {len(encrypted_data)} bytes")
+                    st.info(f"Helper data size: {len(serialize_helper_data(helper_data))} bytes")
                     
                 # Show key similarity if debug mode is enabled
                 if debug_mode:
