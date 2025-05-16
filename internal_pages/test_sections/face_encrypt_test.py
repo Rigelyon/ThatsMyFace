@@ -5,7 +5,7 @@ import streamlit as st
 from PIL import Image
 
 from modules.encryption import encrypt_watermark, decrypt_watermark
-from modules.face_recognition import get_face_embedding, calculate_similarity, verify_face_similarity
+from modules.face_recognition import get_face_embedding, calculate_similarity
 from modules.fuzzy_extractor import generate_key_with_helper, regenerate_key_from_helper
 from modules.utils import has_face, serialize_embedding, serialize_helper_data
 from modules.constants import MIN_SIMILARITY_THRESHOLD, SIMILARITY_THRESHOLD, MAX_SIMILARITY_THRESHOLD

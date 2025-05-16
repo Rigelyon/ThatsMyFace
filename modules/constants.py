@@ -14,5 +14,5 @@ DISTANCE_METRIC = "cosine"  # Options: cosine, euclidean, euclidean_l2
 
 # Thresholds for face similarity
 MIN_SIMILARITY_THRESHOLD = 0.7  # Minimum threshold - if similarity is below this, always reject
-SIMILARITY_THRESHOLD = 0.7  # Default threshold for face similarity (higher means more strict)
+SIMILARITY_THRESHOLD = MIN_SIMILARITY_THRESHOLD  # Default threshold for face similarity (higher means more strict)
 MAX_SIMILARITY_THRESHOLD = 0.95  # Maximum threshold - fully confident it's the same person
