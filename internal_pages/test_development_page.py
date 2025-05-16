@@ -8,4 +8,4 @@ def display_test_development_page(debug_mode=False):
     st.warning("This page is only visible in debug mode and is intended for testing and development purposes.")
     
     # Display the Face Recognition Encryption Test
-    display_face_encrypt_test(debug_mode)
+    display_face_encrypt_test()
