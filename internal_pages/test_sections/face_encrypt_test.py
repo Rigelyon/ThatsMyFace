@@ -11,7 +11,7 @@ from modules.utils import has_face, serialize_embedding, serialize_helper_data
 from modules.constants import MIN_SIMILARITY_THRESHOLD, SIMILARITY_THRESHOLD, MAX_SIMILARITY_THRESHOLD
 
 
-def display_face_encrypt_test(debug_mode=False):
+def display_face_encrypt_test():
     st.subheader("Face Recognition Encryption Test")
     st.markdown("""
     This test verifies if the system can use a face embedding from one image to decrypt data that was 
@@ -153,41 +153,38 @@ def display_face_encrypt_test(debug_mode=False):
                 # For low similarity (similarity_factor near 0): use higher tolerance (more flexible)
                 adjusted_tolerance = user_tolerance * (1.0 - (similarity_factor * 0.5))
 
-                if debug_mode:
-                    st.write("User tolerance setting:", user_tolerance)
-                    st.write("Similarity factor:", similarity_factor)
-                    st.write("Adjusted tolerance:", adjusted_tolerance)
+                st.write("User tolerance setting:", user_tolerance)
+                st.write("Similarity factor:", similarity_factor)
+                st.write("Adjusted tolerance:", adjusted_tolerance)
 
                 # Generate encryption key and helper data from the first embedding
                 start_time = time.time()
                 key1, helper_data = generate_key_with_helper(embedding1, adjusted_tolerance)
                 key_generation_time = time.time() - start_time
 
-                # Debug info for embeddings
-                if debug_mode:
-                    st.write("Face 1 embedding stats:", {
-                        'mean': float(np.mean(embedding1)),
-                        'std': float(np.std(embedding1)),
-                        'min': float(np.min(embedding1)),
-                        'max': float(np.max(embedding1)),
-                        'shape': embedding1.shape
-                    })
-                    st.write("Face 2 embedding stats:", {
-                        'mean': float(np.mean(embedding2)),
-                        'std': float(np.std(embedding2)),
-                        'min': float(np.min(embedding2)),
-                        'max': float(np.max(embedding2)),
-                        'shape': embedding2.shape
-                    })
-                    st.write("Key 1 (first 8 bytes):", key1[:8].hex())
+                st.write("Face 1 embedding stats:", {
+                    'mean': float(np.mean(embedding1)),
+                    'std': float(np.std(embedding1)),
+                    'min': float(np.min(embedding1)),
+                    'max': float(np.max(embedding1)),
+                    'shape': embedding1.shape
+                })
+                st.write("Face 2 embedding stats:", {
+                    'mean': float(np.mean(embedding2)),
+                    'std': float(np.std(embedding2)),
+                    'min': float(np.min(embedding2)),
+                    'max': float(np.max(embedding2)),
+                    'shape': embedding2.shape
+                })
+                st.write("Key 1 (first 8 bytes):", key1[:8].hex())
 
-                    # Show helper data info
-                    st.write("Helper data info:", {
-                        'error_tolerance': helper_data.get('error_tolerance'),
-                        'vector_shape': helper_data.get('vector_shape'),
-                        'vector_mean': helper_data.get('vector_mean'),
-                        'vector_std': helper_data.get('vector_std')
-                    })
+                # Show helper data info
+                st.write("Helper data info:", {
+                    'error_tolerance': helper_data.get('error_tolerance'),
+                    'vector_shape': helper_data.get('vector_shape'),
+                    'vector_mean': helper_data.get('vector_mean'),
+                    'vector_std': helper_data.get('vector_std')
+                })
 
                 # Encrypt with first face
                 start_time = time.time()
@@ -200,7 +197,7 @@ def display_face_encrypt_test(debug_mode=False):
                 key2 = regenerate_key_from_helper(embedding2, helper_data, embedding1)
                 key_regeneration_time = time.time() - start_time
 
-                if debug_mode and key2 is not None:
+                if key2 is not None:
                     st.write("Regenerated Key 2 (first 8 bytes):", key2[:8].hex())
 
                 # Try to decrypt with second face
@@ -246,36 +243,34 @@ def display_face_encrypt_test(debug_mode=False):
                         st.error("❌ TEST FAILED: Could not decrypt the text with the second face")
 
                 # Performance metrics
-                if debug_mode:
-                    st.subheader("Performance Metrics")
-                    st.info(f"Time to extract face embeddings: {embedding_time:.4f} seconds")
-                    st.info(f"Time to generate key with helper data: {key_generation_time:.4f} seconds")
-                    st.info(f"Time to encrypt: {encryption_time:.4f} seconds")
-                    st.info(f"Time to regenerate key from helper data: {key_regeneration_time:.4f} seconds")
-                    st.info(f"Time to decrypt: {decryption_time:.4f} seconds")
-                    st.info(f"Encrypted data size: {len(encrypted_data)} bytes")
-                    st.info(f"Helper data size: {len(serialize_helper_data(helper_data))} bytes")
+                st.subheader("Performance Metrics")
+                st.info(f"Time to extract face embeddings: {embedding_time:.4f} seconds")
+                st.info(f"Time to generate key with helper data: {key_generation_time:.4f} seconds")
+                st.info(f"Time to encrypt: {encryption_time:.4f} seconds")
+                st.info(f"Time to regenerate key from helper data: {key_regeneration_time:.4f} seconds")
+                st.info(f"Time to decrypt: {decryption_time:.4f} seconds")
+                st.info(f"Encrypted data size: {len(encrypted_data)} bytes")
+                st.info(f"Helper data size: {len(serialize_helper_data(helper_data))} bytes")
 
                 # Show key similarity if debug mode is enabled
-                if debug_mode:
-                    # Calculate cosine similarity between embeddings
-                    dot_product = np.dot(embedding1, embedding2)
-                    norm1 = np.linalg.norm(embedding1)
-                    norm2 = np.linalg.norm(embedding2)
-                    similarity = dot_product / (norm1 * norm2)
+                # Calculate cosine similarity between embeddings
+                dot_product = np.dot(embedding1, embedding2)
+                norm1 = np.linalg.norm(embedding1)
+                norm2 = np.linalg.norm(embedding2)
+                similarity = dot_product / (norm1 * norm2)
 
-                    st.info(f"Face embedding similarity: {similarity:.4f} (higher is better, above 0.7 typically indicates same person)")
+                st.info(f"Face embedding similarity: {similarity:.4f} (higher is better, above 0.7 typically indicates same person)")
 
-                    # Compare keys
-                    key_match_count = sum(a == b for a, b in zip(key1, key2))
-                    key_match_percentage = (key_match_count / len(key1)) * 100
-                    st.info(f"Key similarity: {key_match_percentage:.2f}% ({key_match_count}/{len(key1)} bytes match)")
+                # Compare keys
+                key_match_count = sum(a == b for a, b in zip(key1, key2))
+                key_match_percentage = (key_match_count / len(key1)) * 100
+                st.info(f"Key similarity: {key_match_percentage:.2f}% ({key_match_count}/{len(key1)} bytes match)")
 
-                    # Additional explanations in debug mode
-                    st.markdown("""
-                    ### How the System Works
-                    1. **Face Similarity Check**: First, we verify that both faces are similar enough to be the same person.
-                    2. **Dynamic Error Tolerance**: The error tolerance is adjusted based on face similarity and your slider setting.
-                    3. **Key Generation**: The face embedding is converted to a binary representation, which generates an encryption key.
-                    4. **Fuzzy Matching**: When decrypting, the system allows for small variations in the face image while still producing the same key.
-                    """)
+                # Additional explanations in debug mode
+                st.markdown("""
+                ### How the System Works
+                1. **Face Similarity Check**: First, we verify that both faces are similar enough to be the same person.
+                2. **Dynamic Error Tolerance**: The error tolerance is adjusted based on face similarity and your slider setting.
+                3. **Key Generation**: The face embedding is converted to a binary representation, which generates an encryption key.
+                4. **Fuzzy Matching**: When decrypting, the system allows for small variations in the face image while still producing the same key.
+                """)
