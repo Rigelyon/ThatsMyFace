@@ -2,7 +2,10 @@ import numpy as np
 import os
 import hashlib
 from typing import Tuple, Optional, Dict, Any
+
 from modules.utils import bytes_to_bits, bits_to_bytes
+from modules.face_recognition import verify_face_similarity
+from modules.constants import MIN_SIMILARITY_THRESHOLD
 
 class FuzzyExtractor:
     """
@@ -153,7 +156,6 @@ class FuzzyExtractor:
 
         return False
 
-    # Removed redundant wrapper methods - using imported functions directly
 
 
 def vector_to_binary(embedding: np.ndarray, threshold: float = 0.0) -> bytes:
@@ -213,18 +215,27 @@ def generate_key_with_helper(embedding: np.ndarray,
 
 
 def regenerate_key_from_helper(embedding: np.ndarray,
-                               helper_dict: Dict[str, Any]) -> Optional[bytes]:
+                               helper_dict: Dict[str, Any],
+                               original_embedding: np.ndarray = None) -> Optional[bytes]:
     """
     Reproduce the key from a face embedding and helper data.
+    If original_embedding is provided, it will first check if the faces are similar enough.
 
     Args:
         embedding: Face embedding vector
         helper_dict: Helper data dictionary from create_fuzzy_extractor
+        original_embedding: Optional original face embedding to verify similarity
 
     Returns:
         Reproduced key or None if reproduction fails
     """
     try:
+        # If we have the original embedding, verify face similarity first
+        if original_embedding is not None:
+            if not verify_face_similarity(embedding, original_embedding, MIN_SIMILARITY_THRESHOLD):
+                print("Face similarity check failed - faces appear to be different people")
+                return None
+        
         # Normalize embedding vector
         norm_embedding = embedding / np.linalg.norm(embedding)
 

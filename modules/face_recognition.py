@@ -3,7 +3,7 @@ from deepface import DeepFace
 from typing import Optional, List
 from scipy import spatial
 
-from modules.constants import FACE_DETECTION_MODEL, EMBEDDING_MODEL, DISTANCE_METRIC
+from modules.constants import FACE_DETECTION_MODEL, EMBEDDING_MODEL, DISTANCE_METRIC, SIMILARITY_THRESHOLD
 
 def detect_faces(image: np.ndarray) -> List[dict]:
     """
@@ -112,3 +112,20 @@ def calculate_similarity(embedding1: np.ndarray, embedding2: np.ndarray) -> floa
         similarity = 1 - spatial.distance.cosine(embedding1, embedding2)
 
     return similarity
+
+def verify_face_similarity(embedding1: np.ndarray, embedding2: np.ndarray, custom_threshold: float = None) -> bool:
+    """
+    Verify if two face embeddings belong to the same person.
+    
+    Args:
+        embedding1: First face embedding vector
+        embedding2: Second face embedding vector
+        custom_threshold: Optional custom similarity threshold (overrides SIMILARITY_THRESHOLD)
+        
+    Returns:
+        Boolean indicating whether faces are similar enough (same person)
+    """
+    similarity = calculate_similarity(embedding1, embedding2)
+    threshold = custom_threshold if custom_threshold is not None else SIMILARITY_THRESHOLD
+    
+    return similarity >= threshold
