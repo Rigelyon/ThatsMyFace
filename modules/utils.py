@@ -1,3 +1,4 @@
+import streamlit as st
 import os
 import numpy as np
 from PIL import Image
@@ -5,6 +6,8 @@ import io
 from typing import Union, Optional, Tuple
 
 from deepface import DeepFace
+
+from modules.constants import FACE_DETECTION_MODEL
 
 
 def load_image(path: str) -> Optional[Image.Image]:
@@ -147,8 +150,15 @@ def has_face(image):
         True if one or more human faces are detected, False otherwise.
     """
     try:
-        img_array = np.array(image)
-        faces = DeepFace.extract_faces(img_array, enforce_detection=True)
+        if isinstance(image, Image.Image):
+            image = np.array(image)
+
+        faces = DeepFace.extract_faces(
+            image,
+            detector_backend=FACE_DETECTION_MODEL,
+            enforce_detection=False
+        )
         return len(faces) > 0
     except Exception:
+        st.error("Error detecting faces.")
         return False
