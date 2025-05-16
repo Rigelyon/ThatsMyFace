@@ -140,15 +140,17 @@ def is_image_valid(image: Optional[Union[Image.Image, np.ndarray]]) -> bool:
 
     return False
 
-def has_face(image):
+def has_face(image, anti_spoofing=False):
     """
     Analyzes the given image and detects if it contains any human faces.
 
     Args:
         image: Input image to be analyzed. It should be compatible with image processing libraries like a PIL Image or NumPy array.
+        anti_spoofing: Whether to perform anti-spoofing check (detect fake faces)
 
     Returns:
-        True if one or more human faces are detected, False otherwise.
+        If anti_spoofing is False: True if one or more human faces are detected, False otherwise.
+        If anti_spoofing is True: Tuple of (has_face, is_real) where is_real is False if spoofing detected
     """
     try:
         if isinstance(image, Image.Image):
@@ -157,12 +159,19 @@ def has_face(image):
         faces = DeepFace.extract_faces(
             image,
             detector_backend=FACE_DETECTION_MODEL,
-            enforce_detection=False
+            enforce_detection=False,
+            anti_spoofing=anti_spoofing
         )
-        return len(faces) > 0
+        
+        if not anti_spoofing:
+            return len(faces) > 0
+        else:
+            has_face = len(faces) > 0
+            is_real = all(face.get("is_real", True) for face in faces) if has_face else True
+            return (has_face, is_real)
     except Exception:
         st.error("Error detecting faces.")
-        return False
+        return (False, False) if anti_spoofing else False
 
 def serialize_embedding(embedding):
     """

@@ -26,6 +26,11 @@ def display_face_encrypt_test():
     # Create two columns for face uploads
     col1, col2 = st.columns(2)
 
+    # Anti-spoofing option
+    st.markdown("### Security Options")
+    anti_spoofing = st.checkbox("Enable Anti-Spoofing Detection", value=True, 
+                              help="When enabled, the system will check if uploaded photos are of real faces (not printed photos or digital screens)")
+    
     with col1:
         st.markdown("### Face Photo #1 (Encryption)")
         face1_file = st.file_uploader("Upload first face photo", type=["jpg", "jpeg", "png"], key="face1")
@@ -80,14 +85,36 @@ def display_face_encrypt_test():
             face1_array = np.array(face1_img)
             face2_array = np.array(face2_img)
 
-            # Get face embeddings
+            # Get face embeddings with anti-spoofing if enabled
             start_time = time.time()
-            embedding1 = get_face_embedding(face1_array)
-            embedding2 = get_face_embedding(face2_array)
+            
+            # Step 1: Detect faces with anti-spoofing to check if they're real
+            if anti_spoofing:
+                faces1 = detect_faces(face1_array, anti_spoofing=True)
+                faces2 = detect_faces(face2_array, anti_spoofing=True)
+                
+                # Check if any faces are fake
+                if faces1 and not faces1[0].get("is_real", True):
+                    st.error("❌ SPOOFING DETECTED: The first face appears to be fake (possibly a printed photo or screen)")
+                    st.warning("For security reasons, processing will be aborted.")
+                    return
+                    
+                if faces2 and not faces2[0].get("is_real", True):
+                    st.error("❌ SPOOFING DETECTED: The second face appears to be fake (possibly a printed photo or screen)")
+                    st.warning("For security reasons, processing will be aborted.")
+                    return
+            
+            # Step 2: Get embeddings if anti-spoofing checks pass
+            embedding1 = get_face_embedding(face1_array, anti_spoofing=anti_spoofing)
+            embedding2 = get_face_embedding(face2_array, anti_spoofing=anti_spoofing)
             embedding_time = time.time() - start_time
-
+            
             if embedding1 is None or embedding2 is None:
-                st.error("Failed to extract face embeddings from one or both images")
+                if anti_spoofing:
+                    st.error("Failed to extract face embeddings. This could be due to spoofing detection or face detection issues.")
+                    st.info("If you're using legitimate photos of real people, try disabling anti-spoofing or use different photos.")
+                else:
+                    st.error("Failed to extract face embeddings from one or both images")
             else:
                 # Calculate face similarity
                 similarity = calculate_similarity(embedding1, embedding2)

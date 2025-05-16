@@ -15,6 +15,10 @@ def display_extract_watermark_page(debug_mode=False):
     st.subheader("1. Upload Authentication Face")
     auth_face = st.file_uploader("Upload a face image for authentication (can be different from the one used for embedding)",
                                  type=["jpg", "jpeg", "png"])
+    
+    # Anti-spoofing option
+    anti_spoofing = st.checkbox("Enable Anti-Spoofing Detection", value=True, 
+                               help="When enabled, the system will check if the face is real (not a printed photo or digital screen)")
 
     # Upload helper data file
     st.subheader("2. Upload Helper Data File")
@@ -32,11 +36,23 @@ def display_extract_watermark_page(debug_mode=False):
             auth_image = Image.open(auth_face)
             auth_image_array = np.array(auth_image)
 
+            # Check for spoofing if enabled
+            if anti_spoofing:
+                faces = detect_faces(auth_image_array, anti_spoofing=True)
+                if faces and not faces[0].get("is_real", True):
+                    st.error("❌ SPOOFING DETECTED: The authentication face appears to be fake (possibly a printed photo or screen)")
+                    st.warning("For security reasons, processing will be aborted. Please use a real face photo.")
+                    return
+            
             # Get embedding for encryption key generation
-            embedding = get_face_embedding(auth_image_array)
-
+            embedding = get_face_embedding(auth_image_array, anti_spoofing=anti_spoofing)
+            
             if embedding is None:
-                st.error("Could not detect a face in the authentication image.")
+                if anti_spoofing:
+                    st.error("Could not detect a face in the authentication image or spoofing was detected.")
+                    st.info("If you're using a legitimate photo of a real person, try disabling anti-spoofing or use a different photo.")
+                else:
+                    st.error("Could not detect a face in the authentication image.")
             else:
                 # Load helper data
                 helper_data = deserialize_helper_data(helper_file.getvalue())

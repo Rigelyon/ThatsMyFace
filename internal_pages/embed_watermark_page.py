@@ -41,6 +41,8 @@ def display_embed_watermark_page(debug_mode=False):
     # Authentication option
     st.subheader("5. Watermarking Options")
     auth_required = st.checkbox("Only watermark images containing the authentication face")
+    anti_spoofing = st.checkbox("Enable Anti-Spoofing Detection", value=True, 
+                               help="When enabled, the system will check if faces are real (not printed photos or digital screens)")
 
     if st.button("Process Images", disabled=not (auth_face and watermark_file and uploaded_files)):
         # Validate inputs
@@ -60,11 +62,23 @@ def display_embed_watermark_page(debug_mode=False):
                 auth_image = Image.open(auth_face)
                 auth_image_array = np.array(auth_image)
 
+                # Check for spoofing if enabled
+                if anti_spoofing:
+                    faces = detect_faces(auth_image_array, anti_spoofing=True)
+                    if faces and not faces[0].get("is_real", True):
+                        st.error("❌ SPOOFING DETECTED: The authentication face appears to be fake (possibly a printed photo or screen)")
+                        st.warning("For security reasons, processing will be aborted. Please use a real face photo.")
+                        return
+                
                 # Get embedding for encryption key generation
-                embedding = get_face_embedding(auth_image_array)
-
+                embedding = get_face_embedding(auth_image_array, anti_spoofing=anti_spoofing)
+                
                 if embedding is None:
-                    st.error("Could not detect a face in the authentication image.")
+                    if anti_spoofing:
+                        st.error("Could not detect a face in the authentication image or spoofing was detected.")
+                        st.info("If you're using a legitimate photo of a real person, try disabling anti-spoofing or use a different photo.")
+                    else:
+                        st.error("Could not detect a face in the authentication image.")
                 else:
                     # Generate encryption key and helper data using fuzzy extractor
                     encryption_key, helper_data = generate_key_with_helper(embedding, error_tolerance)
@@ -117,7 +131,15 @@ def display_embed_watermark_page(debug_mode=False):
                         # Check if authentication is required and image contains matching face
                         should_watermark = True
                         if auth_required:
-                            should_watermark = check_face_match(np.array(img), auth_image_array)
+                            match_result = check_face_match(np.array(img), auth_image_array, anti_spoofing=anti_spoofing)
+                            is_match, is_real, message = match_result
+                            
+                            # Handle spoofing detection
+                            if anti_spoofing and is_real is False:
+                                st.warning(f"Spoofing detected in image {uploaded_file.name}: {message}")
+                                should_watermark = False
+                            else:
+                                should_watermark = is_match
 
                         # Apply watermark if conditions are met
                         if should_watermark:
