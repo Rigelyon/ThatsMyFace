@@ -1,15 +1,18 @@
+import io
+import os
+import time
+
+import numpy as np
 import streamlit as st
 from PIL import Image
-import numpy as np
-import io
-import time
-import os
-from modules.watermarking import embed_watermark
-from modules.face_recognition import get_face_embedding, check_face_match
+
+from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE
 from modules.encryption import encrypt_watermark
+from modules.face_recognition import get_face_embedding, check_face_match
 from modules.fuzzy_extractor import generate_key_with_helper
 from modules.utils import has_face, convert_to_bytes, save_helper_data
-from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE
+from modules.watermarking import embed_watermark
+
 
 def display_embed_watermark_page(debug_mode=False):
     st.header("Embed Watermark")

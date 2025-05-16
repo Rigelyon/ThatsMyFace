@@ -1,11 +1,11 @@
-import streamlit as st
-import os
-import numpy as np
-from PIL import Image
 import io
+import os
 import pickle
 from typing import Union, Optional, Dict, Any
 
+import numpy as np
+import streamlit as st
+from PIL import Image
 from deepface import DeepFace
 
 from modules.constants import FACE_DETECTION_MODEL
@@ -22,10 +22,11 @@ def load_image(path: str) -> Optional[Image.Image]:
         PIL Image object or None if loading fails
     """
     try:
-        return Image.open(path).convert('RGB')
+        return Image.open(path).convert("RGB")
     except Exception as e:
         print(f"Error loading image: {str(e)}")
         return None
+
 
 def save_image(image: Image.Image, path: str) -> bool:
     """
@@ -49,7 +50,8 @@ def save_image(image: Image.Image, path: str) -> bool:
         print(f"Error saving image: {str(e)}")
         return False
 
-def convert_to_bytes(image: Image.Image, format: str = 'PNG') -> bytes:
+
+def convert_to_bytes(image: Image.Image, format: str = "PNG") -> bytes:
     """
     Convert PIL Image to bytes
 
@@ -63,6 +65,7 @@ def convert_to_bytes(image: Image.Image, format: str = 'PNG') -> bytes:
     img_buffer = io.BytesIO()
     image.save(img_buffer, format=format)
     return img_buffer.getvalue()
+
 
 def bytes_to_image(image_bytes: bytes) -> Optional[Image.Image]:
     """
@@ -79,6 +82,7 @@ def bytes_to_image(image_bytes: bytes) -> Optional[Image.Image]:
     except Exception:
         return None
 
+
 def normalize_image(image: np.ndarray) -> np.ndarray:
     """
     Normalize image values to 0-1 range
@@ -92,6 +96,7 @@ def normalize_image(image: np.ndarray) -> np.ndarray:
     if image.dtype == np.uint8:
         return image.astype(np.float32) / 255.0
     return image
+
 
 def denormalize_image(image: np.ndarray) -> np.ndarray:
     """
@@ -107,6 +112,7 @@ def denormalize_image(image: np.ndarray) -> np.ndarray:
         return (image * 255.0).astype(np.uint8)
     return image.astype(np.uint8)
 
+
 def ensure_valid_pixel_values(image: np.ndarray) -> np.ndarray:
     """
     Ensure pixel values are within valid range (0-255)
@@ -118,6 +124,7 @@ def ensure_valid_pixel_values(image: np.ndarray) -> np.ndarray:
         Image with valid pixel values
     """
     return np.clip(image, 0, 255).astype(np.uint8)
+
 
 def is_image_valid(image: Optional[Union[Image.Image, np.ndarray]]) -> bool:
     """
@@ -140,6 +147,7 @@ def is_image_valid(image: Optional[Union[Image.Image, np.ndarray]]) -> bool:
 
     return False
 
+
 def has_face(image):
     """
     Analyzes the given image and detects if it contains any human faces.
@@ -155,14 +163,13 @@ def has_face(image):
             image = np.array(image)
 
         faces = DeepFace.extract_faces(
-            image,
-            detector_backend=FACE_DETECTION_MODEL,
-            enforce_detection=False
+            image, detector_backend=FACE_DETECTION_MODEL, enforce_detection=False
         )
         return len(faces) > 0
     except Exception:
         st.error("Error detecting faces.")
         return False
+
 
 def serialize_embedding(embedding):
     """
@@ -177,6 +184,7 @@ def serialize_embedding(embedding):
     buffer = io.BytesIO()
     np.save(buffer, embedding)
     return buffer.getvalue()
+
 
 def serialize_helper_data(helper_dict: Dict[str, Any]) -> bytes:
     """
@@ -193,6 +201,7 @@ def serialize_helper_data(helper_dict: Dict[str, Any]) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
+
 def deserialize_helper_data(helper_bytes: bytes) -> Dict[str, Any]:
     """
     Deserialize helper data from bytes.
@@ -206,6 +215,7 @@ def deserialize_helper_data(helper_bytes: bytes) -> Dict[str, Any]:
     buffer = io.BytesIO(helper_bytes)
     buffer.seek(0)
     return pickle.load(buffer)
+
 
 def save_helper_data(helper_dict: Dict[str, Any], path: str) -> bool:
     """
@@ -224,12 +234,13 @@ def save_helper_data(helper_dict: Dict[str, Any], path: str) -> bool:
 
         # Serialize and save
         helper_bytes = serialize_helper_data(helper_dict)
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             f.write(helper_bytes)
         return True
     except Exception as e:
         print(f"Error saving helper data: {str(e)}")
         return False
+
 
 def load_helper_data(path: str) -> Optional[Dict[str, Any]]:
     """
@@ -242,12 +253,13 @@ def load_helper_data(path: str) -> Optional[Dict[str, Any]]:
         Helper data dictionary or None if loading fails
     """
     try:
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             helper_bytes = f.read()
         return deserialize_helper_data(helper_bytes)
     except Exception as e:
         print(f"Error loading helper data: {str(e)}")
         return None
+
 
 def bytes_to_bits(data: bytes) -> np.ndarray:
     """
@@ -266,6 +278,7 @@ def bytes_to_bits(data: bytes) -> np.ndarray:
             result.append((byte >> (7 - i)) & 1)
     return np.array(result, dtype=np.uint8)
 
+
 def bits_to_bytes(bits: np.ndarray) -> bytes:
     """
     Convert bit array to bytes.
@@ -283,8 +296,8 @@ def bits_to_bytes(bits: np.ndarray) -> bytes:
     result = bytearray()
     for i in range(0, len(bits), 8):
         byte_val = 0
-        for bit_idx, bit in enumerate(bits[i:i+8]):
-            byte_val |= (bit << (7 - bit_idx))
+        for bit_idx, bit in enumerate(bits[i : i + 8]):
+            byte_val |= bit << (7 - bit_idx)
         result.append(byte_val)
 
     return bytes(result)

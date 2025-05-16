@@ -1,12 +1,15 @@
+import io
+
+import numpy as np
 import streamlit as st
 from PIL import Image
-import numpy as np
-import io
-from modules.face_recognition import get_face_embedding
-from modules.watermarking import extract_watermark, detect_watermark
+
 from modules.encryption import decrypt_watermark
-from modules.fuzzy_extractor import  regenerate_key_from_helper
-from modules.utils import load_helper_data, deserialize_helper_data
+from modules.face_recognition import get_face_embedding
+from modules.fuzzy_extractor import regenerate_key_from_helper
+from modules.utils import deserialize_helper_data
+from modules.watermarking import extract_watermark, detect_watermark
+
 
 def display_extract_watermark_page(debug_mode=False):
     st.header("Extract Watermark")

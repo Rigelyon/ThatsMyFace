@@ -1,7 +1,9 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-from Crypto.Random import get_random_bytes
 from typing import Union, Optional
+
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
+
 
 def encrypt_watermark(watermark_data: Union[str, bytes], key: bytes) -> bytes:
     """
