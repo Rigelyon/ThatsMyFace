@@ -18,9 +18,9 @@ def display_extract_watermark_page(debug_mode=False):
     st.subheader("1. Upload Authentication Face")
     auth_face = st.file_uploader("Upload a face image for authentication (can be different from the one used for embedding)",
                                  type=["jpg", "jpeg", "png"])
-    
+
     # Anti-spoofing option
-    anti_spoofing = st.checkbox("Enable Anti-Spoofing Detection", value=True, 
+    anti_spoofing = st.checkbox("Enable Anti-Spoofing Detection", value=True,
                                help="When enabled, the system will check if the face is real (not a printed photo or digital screen)")
 
     # Upload helper data file
@@ -46,10 +46,10 @@ def display_extract_watermark_page(debug_mode=False):
                     st.error("❌ SPOOFING DETECTED: The authentication face appears to be fake (possibly a printed photo or screen)")
                     st.warning("For security reasons, processing will be aborted. Please use a real face photo.")
                     return
-            
+
             # Get embedding for encryption key generation
             embedding = get_face_embedding(auth_image_array, anti_spoofing=anti_spoofing)
-            
+
             if embedding is None:
                 if anti_spoofing:
                     st.error("Could not detect a face in the authentication image or spoofing was detected.")
