@@ -162,3 +162,17 @@ def has_face(image):
     except Exception:
         st.error("Error detecting faces.")
         return False
+
+def serialize_embedding(embedding):
+    """
+    Convert a numpy array embedding to downloadable bytes
+
+    Args:
+        embedding: Numpy array containing the face embedding
+
+    Returns:
+        Bytes representation of the embedding
+    """
+    buffer = io.BytesIO()
+    np.save(buffer, embedding)
+    return buffer.getvalue()

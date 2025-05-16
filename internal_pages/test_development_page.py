@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 import time
 
-from modules.utils import has_face
+from modules.utils import has_face, serialize_embedding
 from modules.face_recognition import get_face_embedding
 from modules.encryption import generate_key_with_helper, regenerate_key_from_helper, encrypt_watermark, decrypt_watermark
 from modules.fuzzy_extractor import serialize_helper_data, deserialize_helper_data
@@ -56,8 +56,8 @@ def display_test_development_page(debug_mode=False):
     # Error tolerance slider for fuzzy extractor
     error_tolerance = st.slider(
         "Error Tolerance (higher values allow more variation in face images)",
-        min_value=10,
-        max_value=200,
+        min_value=1,
+        max_value=95,
         value=50,
         help="Higher values make authentication more flexible but potentially less secure"
     )
@@ -82,6 +82,28 @@ def display_test_development_page(debug_mode=False):
             if embedding1 is None or embedding2 is None:
                 st.error("Failed to extract face embeddings from one or both images")
             else:
+                # Add download buttons for both embeddings
+                col1, col2 = st.columns(2)
+                with col1:
+                    embedding1_bytes = serialize_embedding(embedding1)
+                    st.download_button(
+                        label="⬇️ Download Face 1 Embedding",
+                        data=embedding1_bytes,
+                        file_name="face1_embedding.npy",
+                        mime="application/octet-stream",
+                        help="Download the face embedding vector for the first face image"
+                    )
+                
+                with col2:
+                    embedding2_bytes = serialize_embedding(embedding2)
+                    st.download_button(
+                        label="⬇️ Download Face 2 Embedding",
+                        data=embedding2_bytes,
+                        file_name="face2_embedding.npy",
+                        mime="application/octet-stream",
+                        help="Download the face embedding vector for the second face image"
+                    )
+                
                 # Generate encryption key and helper data from the first embedding
                 start_time = time.time()
                 key1, helper_data = generate_key_with_helper(embedding1, error_tolerance)
@@ -145,6 +167,8 @@ def display_test_development_page(debug_mode=False):
                 )
                 
                 st.info("The helper data file is required for decryption with any face image, even if it's the same person. It contains error correction data but not the secret key itself.")
+                
+                st.info("You can download the face embeddings for research or development purposes. These are numerical vector representations of the face features that can be used with compatible machine learning models.")
                 
                 # Check if decryption was successful
                 if decrypted_data is not None:
