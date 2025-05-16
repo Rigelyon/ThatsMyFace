@@ -6,4 +6,3 @@ deepface>=0.0.79
 tf-keras==2.19.0
 scipy>=1.8.0
 pycryptodome>=3.15.0
-fuzzy-extractor==0.1.0

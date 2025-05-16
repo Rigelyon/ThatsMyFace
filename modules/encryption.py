@@ -1,55 +1,7 @@
-import numpy as np
-import hashlib
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
-from typing import Union, Optional, Dict, Any
-from modules.fuzzy_extractor import create_fuzzy_extractor, reproduce_key_from_embedding
-
-def generate_key_from_embedding(embedding: np.ndarray) -> bytes:
-    """
-    Generate an AES encryption key from a face embedding vector
-
-    Args:
-        embedding: Face embedding vector
-
-    Returns:
-        32-byte key for AES-256 encryption
-    """
-    # Normalize embedding vector
-    norm_embedding = embedding / np.linalg.norm(embedding)
-
-    # Convert to bytes and hash to get a fixed-length key
-    embedding_bytes = norm_embedding.tobytes()
-    key = hashlib.sha256(embedding_bytes).digest()
-
-    return key
-
-def generate_key_with_helper(embedding: np.ndarray, error_tolerance: int = 50) -> tuple[bytes, Dict[str, Any]]:
-    """
-    Generate an AES encryption key from a face embedding vector using fuzzy extractor
-
-    Args:
-        embedding: Face embedding vector
-        error_tolerance: Number of bit errors to tolerate
-
-    Returns:
-        tuple of (32-byte key for AES-256 encryption, helper data)
-    """
-    return create_fuzzy_extractor(embedding, error_tolerance)
-
-def regenerate_key_from_helper(embedding: np.ndarray, helper_data: Dict[str, Any]) -> Optional[bytes]:
-    """
-    Regenerate the AES encryption key from a face embedding and helper data
-
-    Args:
-        embedding: Face embedding vector
-        helper_data: Helper data from generate_key_with_helper
-
-    Returns:
-        32-byte key for AES-256 encryption or None if regeneration fails
-    """
-    return reproduce_key_from_embedding(embedding, helper_data)
+from typing import Union, Optional
 
 def encrypt_watermark(watermark_data: Union[str, bytes], key: bytes) -> bytes:
     """

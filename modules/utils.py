@@ -3,7 +3,8 @@ import os
 import numpy as np
 from PIL import Image
 import io
-from typing import Union, Optional, Tuple
+import pickle
+from typing import Union, Optional, Dict, Any
 
 from deepface import DeepFace
 
@@ -176,3 +177,114 @@ def serialize_embedding(embedding):
     buffer = io.BytesIO()
     np.save(buffer, embedding)
     return buffer.getvalue()
+
+def serialize_helper_data(helper_dict: Dict[str, Any]) -> bytes:
+    """
+    Serialize helper data to bytes for storage.
+
+    Args:
+        helper_dict: Helper data dictionary
+
+    Returns:
+        Serialized helper data as bytes
+    """
+    buffer = io.BytesIO()
+    pickle.dump(helper_dict, buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def deserialize_helper_data(helper_bytes: bytes) -> Dict[str, Any]:
+    """
+    Deserialize helper data from bytes.
+
+    Args:
+        helper_bytes: Serialized helper data
+
+    Returns:
+        Helper data dictionary
+    """
+    buffer = io.BytesIO(helper_bytes)
+    buffer.seek(0)
+    return pickle.load(buffer)
+
+def save_helper_data(helper_dict: Dict[str, Any], path: str) -> bool:
+    """
+    Save helper data to a file.
+
+    Args:
+        helper_dict: Helper data dictionary
+        path: Path to save the helper data
+
+    Returns:
+        True if saving was successful, False otherwise
+    """
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Serialize and save
+        helper_bytes = serialize_helper_data(helper_dict)
+        with open(path, 'wb') as f:
+            f.write(helper_bytes)
+        return True
+    except Exception as e:
+        print(f"Error saving helper data: {str(e)}")
+        return False
+
+def load_helper_data(path: str) -> Optional[Dict[str, Any]]:
+    """
+    Load helper data from a file.
+
+    Args:
+        path: Path to the helper data file
+
+    Returns:
+        Helper data dictionary or None if loading fails
+    """
+    try:
+        with open(path, 'rb') as f:
+            helper_bytes = f.read()
+        return deserialize_helper_data(helper_bytes)
+    except Exception as e:
+        print(f"Error loading helper data: {str(e)}")
+        return None
+
+def bytes_to_bits(data: bytes) -> np.ndarray:
+    """
+    Convert bytes to bit array.
+
+    Args:
+        data: Bytes to convert
+
+    Returns:
+        Numpy array of bits (0s and 1s)
+    """
+    result = []
+    for byte in data:
+        # Convert each byte to 8 bits
+        for i in range(8):
+            result.append((byte >> (7 - i)) & 1)
+    return np.array(result, dtype=np.uint8)
+
+def bits_to_bytes(bits: np.ndarray) -> bytes:
+    """
+    Convert bit array to bytes.
+
+    Args:
+        bits: Numpy array of bits (0s and 1s)
+
+    Returns:
+        Bytes representation
+    """
+    # Ensure length is multiple of 8
+    if len(bits) % 8 != 0:
+        bits = np.pad(bits, (0, 8 - (len(bits) % 8)))
+
+    result = bytearray()
+    for i in range(0, len(bits), 8):
+        byte_val = 0
+        for bit_idx, bit in enumerate(bits[i:i+8]):
+            byte_val |= (bit << (7 - bit_idx))
+        result.append(byte_val)
+
+    return bytes(result)

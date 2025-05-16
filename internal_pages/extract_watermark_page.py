@@ -4,8 +4,9 @@ import numpy as np
 import io
 from modules.face_recognition import get_face_embedding
 from modules.watermarking import extract_watermark, detect_watermark
-from modules.encryption import regenerate_key_from_helper, decrypt_watermark
-from modules.fuzzy_extractor import load_helper_data, deserialize_helper_data
+from modules.encryption import decrypt_watermark
+from modules.fuzzy_extractor import  regenerate_key_from_helper
+from modules.utils import load_helper_data, deserialize_helper_data
 
 def display_extract_watermark_page(debug_mode=False):
     st.header("Extract Watermark")
