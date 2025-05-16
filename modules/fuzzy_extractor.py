@@ -1,11 +1,13 @@
-import numpy as np
-import os
 import hashlib
+import os
 from typing import Tuple, Optional, Dict, Any
 
-from modules.utils import bytes_to_bits, bits_to_bytes
-from modules.face_recognition import verify_face_similarity
+import numpy as np
+
 from modules.constants import MIN_SIMILARITY_THRESHOLD
+from modules.face_recognition import verify_face_similarity
+from modules.utils import bytes_to_bits, bits_to_bytes
+
 
 class FuzzyExtractor:
     """
@@ -41,7 +43,9 @@ class FuzzyExtractor:
 
         # Generate random bits for the sketch (secure sketch)
         # We use a cryptographically secure random generator
-        random_seed = int.from_bytes(os.urandom(4), byteorder='big') % (2**32 - 1)  # Ensure seed is within valid range
+        random_seed = int.from_bytes(os.urandom(4), byteorder="big") % (
+            2**32 - 1
+        )  # Ensure seed is within valid range
         np.random.seed(random_seed)
         random_bits = np.random.randint(0, 2, size=len(bits), dtype=np.uint8)
 
@@ -50,16 +54,20 @@ class FuzzyExtractor:
 
         # Create helper data
         helper_data = {
-            'syndrome': syndrome.tolist(),
-            'random_seed': random_seed,  # Store the properly sized random seed
-            'data_length': len(binary_data),
-            'error_tolerance': self.error_tolerance,
-            'hash_check': hashlib.sha256(binary_data).hexdigest()[:16]  # First 16 chars of hash for verification
+            "syndrome": syndrome.tolist(),
+            "random_seed": random_seed,  # Store the properly sized random seed
+            "data_length": len(binary_data),
+            "error_tolerance": self.error_tolerance,
+            "hash_check": hashlib.sha256(binary_data).hexdigest()[
+                :16
+            ],  # First 16 chars of hash for verification
         }
 
         return key, helper_data
 
-    def reproduce(self, binary_data: bytes, helper_data: Dict[str, Any]) -> Optional[bytes]:
+    def reproduce(
+        self, binary_data: bytes, helper_data: Dict[str, Any]
+    ) -> Optional[bytes]:
         """
         Reproduce the key from binary data and helper data.
 
@@ -71,23 +79,25 @@ class FuzzyExtractor:
             Reproduced key or None if reproduction fails
         """
         # Validate the input data length
-        if len(binary_data) != helper_data['data_length']:
+        if len(binary_data) != helper_data["data_length"]:
             # Try to adjust the binary data to match expected length
-            if len(binary_data) > helper_data['data_length']:
-                binary_data = binary_data[:helper_data['data_length']]
+            if len(binary_data) > helper_data["data_length"]:
+                binary_data = binary_data[: helper_data["data_length"]]
             else:
                 # If too short, pad with zeros
-                binary_data = binary_data + b'\x00' * (helper_data['data_length'] - len(binary_data))
+                binary_data = binary_data + b"\x00" * (
+                    helper_data["data_length"] - len(binary_data)
+                )
 
         # Convert to bit array
         bits = bytes_to_bits(binary_data)
-        syndrome = np.array(helper_data['syndrome'], dtype=np.uint8)
+        syndrome = np.array(helper_data["syndrome"], dtype=np.uint8)
 
         # Check data dimensions
         if len(bits) != len(syndrome):
             # Try to adjust bits array to match syndrome length
             if len(bits) > len(syndrome):
-                bits = bits[:len(syndrome)]
+                bits = bits[: len(syndrome)]
             else:
                 bits = np.pad(bits, (0, len(syndrome) - len(bits)))
 
@@ -96,14 +106,14 @@ class FuzzyExtractor:
         hamming_distance = np.sum(bits ^ syndrome)
 
         # Calculate max allowable errors
-        max_errors = int(len(bits) * helper_data['error_tolerance'])
+        max_errors = int(len(bits) * helper_data["error_tolerance"])
 
         # If too many errors, reproduction fails
         if hamming_distance > max_errors:
             return None
 
         # Ensure random_seed is within valid range for np.random.seed
-        random_seed = helper_data['random_seed'] % (2**32 - 1)
+        random_seed = helper_data["random_seed"] % (2**32 - 1)
         np.random.seed(random_seed)
         random_bits = np.random.randint(0, 2, size=len(syndrome), dtype=np.uint8)
 
@@ -115,14 +125,16 @@ class FuzzyExtractor:
 
         # Verify reconstruction with hash check
         reconstruct_hash = hashlib.sha256(reconstructed_bytes).hexdigest()[:16]
-        if reconstruct_hash != helper_data['hash_check']:
+        if reconstruct_hash != helper_data["hash_check"]:
             if not self._try_error_correction(reconstructed_bits, helper_data):
                 return None
 
         key = hashlib.sha256(reconstructed_bytes).digest()
         return key
 
-    def _try_error_correction(self, bits: np.ndarray, helper_data: Dict[str, Any]) -> bool:
+    def _try_error_correction(
+        self, bits: np.ndarray, helper_data: Dict[str, Any]
+    ) -> bool:
         """
         Try to correct errors in the reconstructed bits.
 
@@ -137,7 +149,7 @@ class FuzzyExtractor:
         # In a real implementation, use proper error correction codes like BCH or Reed-Solomon
 
         # Only try to correct if error rate is close to threshold
-        max_flips = min(8, int(len(bits) * helper_data['error_tolerance'] * 0.1))
+        max_flips = min(8, int(len(bits) * helper_data["error_tolerance"] * 0.1))
 
         # Try single bit flips first (more efficient)
         for i in range(min(len(bits), 100)):
@@ -148,14 +160,13 @@ class FuzzyExtractor:
             test_bytes = bits_to_bytes(bits)
             test_hash = hashlib.sha256(test_bytes).hexdigest()[:16]
 
-            if test_hash == helper_data['hash_check']:
+            if test_hash == helper_data["hash_check"]:
                 return True
 
             # Restore the bit if no match
             bits[i] = original_bit
 
         return False
-
 
 
 def vector_to_binary(embedding: np.ndarray, threshold: float = 0.0) -> bytes:
@@ -175,12 +186,14 @@ def vector_to_binary(embedding: np.ndarray, threshold: float = 0.0) -> bytes:
 
     # Create binary representation (1 for values >= threshold, 0 otherwise)
     binary = (embedding >= threshold).astype(np.uint8)
-    
+
     # Convert to bytes
     return bits_to_bytes(binary)
 
-def generate_key_with_helper(embedding: np.ndarray,
-                             error_tolerance: float = 0.15) -> Tuple[bytes, Dict[str, Any]]:
+
+def generate_key_with_helper(
+    embedding: np.ndarray, error_tolerance: float = 0.15
+) -> Tuple[bytes, Dict[str, Any]]:
     """
     Create a fuzzy extractor from a face embedding vector.
     This implementation can handle larger binary data sizes.
@@ -205,18 +218,20 @@ def generate_key_with_helper(embedding: np.ndarray,
     # Store additional metadata in helper data
     helper_dict = {
         **helper_data,
-        'vector_shape': embedding.shape,
-        'vector_mean': float(np.mean(embedding)),
-        'vector_std': float(np.std(embedding)),
-        'binary_length': len(binary_data)
+        "vector_shape": embedding.shape,
+        "vector_mean": float(np.mean(embedding)),
+        "vector_std": float(np.std(embedding)),
+        "binary_length": len(binary_data),
     }
 
     return key, helper_dict
 
 
-def regenerate_key_from_helper(embedding: np.ndarray,
-                               helper_dict: Dict[str, Any],
-                               original_embedding: np.ndarray = None) -> Optional[bytes]:
+def regenerate_key_from_helper(
+    embedding: np.ndarray,
+    helper_dict: Dict[str, Any],
+    original_embedding: np.ndarray = None,
+) -> Optional[bytes]:
     """
     Reproduce the key from a face embedding and helper data.
     If original_embedding is provided, it will first check if the faces are similar enough.
@@ -232,10 +247,14 @@ def regenerate_key_from_helper(embedding: np.ndarray,
     try:
         # If we have the original embedding, verify face similarity first
         if original_embedding is not None:
-            if not verify_face_similarity(embedding, original_embedding, MIN_SIMILARITY_THRESHOLD):
-                print("Face similarity check failed - faces appear to be different people")
+            if not verify_face_similarity(
+                embedding, original_embedding, MIN_SIMILARITY_THRESHOLD
+            ):
+                print(
+                    "Face similarity check failed - faces appear to be different people"
+                )
                 return None
-        
+
         # Normalize embedding vector
         norm_embedding = embedding / np.linalg.norm(embedding)
 
@@ -243,16 +262,14 @@ def regenerate_key_from_helper(embedding: np.ndarray,
         binary_data = vector_to_binary(norm_embedding)
 
         # Create fuzzy extractor with saved parameters
-        extractor = FuzzyExtractor(
-            error_tolerance=helper_dict['error_tolerance']
-        )
+        extractor = FuzzyExtractor(error_tolerance=helper_dict["error_tolerance"])
 
         # Reproduce key from helper data
         key = extractor.reproduce(binary_data, helper_dict)
         if key is None:
-            return b''
+            return b""
         else:
             return key
     except Exception as e:
         print(f"Key reproduction error: {str(e)}")
-        return b''
+        return b""

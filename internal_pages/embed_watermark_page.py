@@ -1,15 +1,18 @@
+import io
+import os
+import time
+
+import numpy as np
 import streamlit as st
 from PIL import Image
-import numpy as np
-import io
-import time
-import os
-from modules.watermarking import embed_watermark
-from modules.face_recognition import get_face_embedding, check_face_match
+
+from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE
 from modules.encryption import encrypt_watermark
+from modules.face_recognition import get_face_embedding, check_face_match, detect_faces
 from modules.fuzzy_extractor import generate_key_with_helper
 from modules.utils import has_face, convert_to_bytes, save_helper_data
-from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE
+from modules.watermarking import embed_watermark
+
 
 def display_embed_watermark_page(debug_mode=False):
     st.header("Embed Watermark")
@@ -69,10 +72,10 @@ def display_embed_watermark_page(debug_mode=False):
                         st.error("❌ SPOOFING DETECTED: The authentication face appears to be fake (possibly a printed photo or screen)")
                         st.warning("For security reasons, processing will be aborted. Please use a real face photo.")
                         return
-                
+
                 # Get embedding for encryption key generation
                 embedding = get_face_embedding(auth_image_array, anti_spoofing=anti_spoofing)
-                
+
                 if embedding is None:
                     if anti_spoofing:
                         st.error("Could not detect a face in the authentication image or spoofing was detected.")
@@ -133,7 +136,7 @@ def display_embed_watermark_page(debug_mode=False):
                         if auth_required:
                             match_result = check_face_match(np.array(img), auth_image_array, anti_spoofing=anti_spoofing)
                             is_match, is_real, message = match_result
-                            
+
                             # Handle spoofing detection
                             if anti_spoofing and is_real is False:
                                 st.warning(f"Spoofing detected in image {uploaded_file.name}: {message}")

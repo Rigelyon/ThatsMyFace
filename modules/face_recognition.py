@@ -1,9 +1,16 @@
+from typing import Optional, List
+
 import numpy as np
 from deepface import DeepFace
-from typing import Optional, List
 from scipy import spatial
 
-from modules.constants import FACE_DETECTION_MODEL, EMBEDDING_MODEL, DISTANCE_METRIC, SIMILARITY_THRESHOLD
+from modules.constants import (
+    FACE_DETECTION_MODEL,
+    EMBEDDING_MODEL,
+    DISTANCE_METRIC,
+    SIMILARITY_THRESHOLD,
+)
+
 
 def detect_faces(image: np.ndarray, anti_spoofing: bool = False) -> List[dict]:
     """
@@ -21,14 +28,17 @@ def detect_faces(image: np.ndarray, anti_spoofing: bool = False) -> List[dict]:
             image,
             detector_backend=FACE_DETECTION_MODEL,
             enforce_detection=False,
-            anti_spoofing=anti_spoofing
+            anti_spoofing=anti_spoofing,
         )
         return faces
     except Exception as e:
         print(f"Error detecting faces: {str(e)}")
         return []
 
-def get_face_embedding(image: np.ndarray, anti_spoofing: bool = False) -> Optional[np.ndarray]:
+
+def get_face_embedding(
+    image: np.ndarray, anti_spoofing: bool = False
+) -> Optional[np.ndarray]:
     """
     Extract face embedding vector from an image with a face
 
@@ -48,7 +58,7 @@ def get_face_embedding(image: np.ndarray, anti_spoofing: bool = False) -> Option
             enforce_detection=True,
             align=True,
             normalization="base",
-            anti_spoofing=anti_spoofing
+            anti_spoofing=anti_spoofing,
         )
 
         # Return the embedding vector
@@ -63,7 +73,10 @@ def get_face_embedding(image: np.ndarray, anti_spoofing: bool = False) -> Option
         print(f"Error getting face embedding: {str(e)}")
         return None
 
-def check_face_match(image: np.ndarray, reference_image: np.ndarray, anti_spoofing: bool = False) -> tuple:
+
+def check_face_match(
+    image: np.ndarray, reference_image: np.ndarray, anti_spoofing: bool = False
+) -> tuple:
     """
     Check if the image contains a face that matches the reference image
 
@@ -89,32 +102,39 @@ def check_face_match(image: np.ndarray, reference_image: np.ndarray, anti_spoofi
             enforce_detection=False,
             align=True,
             normalization="base",
-            anti_spoofing=anti_spoofing
+            anti_spoofing=anti_spoofing,
         )
-        
+
         is_match = verification_result["verified"]
         is_real = None
         message = ""
-        
+
         # Check anti-spoofing results if enabled
         if anti_spoofing:
             # Check if faces are real (note: the API returns "facial_areas" with is_real)
-            img1_real = verification_result.get("img1_facial_areas", [{}])[0].get("is_real", True)
-            img2_real = verification_result.get("img2_facial_areas", [{}])[0].get("is_real", True)
-            
+            img1_real = verification_result.get("img1_facial_areas", [{}])[0].get(
+                "is_real", True
+            )
+            img2_real = verification_result.get("img2_facial_areas", [{}])[0].get(
+                "is_real", True
+            )
+
             is_real = img1_real and img2_real
-            
+
             if not img1_real:
-                message = "Reference face appears to be fake (possible spoofing attempt)"
+                message = (
+                    "Reference face appears to be fake (possible spoofing attempt)"
+                )
             elif not img2_real:
                 message = "Target face appears to be fake (possible spoofing attempt)"
-        
+
         # Return verification result with anti-spoofing info
         return (is_match, is_real, message)
     except Exception as e:
         message = f"Error checking face match: {str(e)}"
         print(message)
         return (False, None, message)
+
 
 def calculate_similarity(embedding1: np.ndarray, embedding2: np.ndarray) -> float:
     """
@@ -144,19 +164,24 @@ def calculate_similarity(embedding1: np.ndarray, embedding2: np.ndarray) -> floa
 
     return similarity
 
-def verify_face_similarity(embedding1: np.ndarray, embedding2: np.ndarray, custom_threshold: float = None) -> bool:
+
+def verify_face_similarity(
+    embedding1: np.ndarray, embedding2: np.ndarray, custom_threshold: float = None
+) -> bool:
     """
     Verify if two face embeddings belong to the same person.
-    
+
     Args:
         embedding1: First face embedding vector
         embedding2: Second face embedding vector
         custom_threshold: Optional custom similarity threshold (overrides SIMILARITY_THRESHOLD)
-        
+
     Returns:
         Boolean indicating whether faces are similar enough (same person)
     """
     similarity = calculate_similarity(embedding1, embedding2)
-    threshold = custom_threshold if custom_threshold is not None else SIMILARITY_THRESHOLD
-    
+    threshold = (
+        custom_threshold if custom_threshold is not None else SIMILARITY_THRESHOLD
+    )
+
     return similarity >= threshold

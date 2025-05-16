@@ -1,5 +1,7 @@
-import streamlit as st
 import os
+
+import streamlit as st
+
 from internal_pages.embed_watermark_page import display_embed_watermark_page
 from internal_pages.extract_watermark_page import display_extract_watermark_page
 from internal_pages.test_development_page import display_test_development_page
