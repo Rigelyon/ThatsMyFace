@@ -1,27 +1,7 @@
-import numpy as np
-import hashlib
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
 from typing import Union, Optional
-
-def generate_key_from_embedding(embedding: np.ndarray) -> bytes:
-    """
-    Generate an AES encryption key from a face embedding vector
-
-    Args:
-        embedding: Face embedding vector
-
-    Returns:
-        32-byte key for AES-256 encryption
-    """
-    # Normalize embedding vector
-    norm_embedding = embedding / np.linalg.norm(embedding)
-
-    # Convert to bytes and hash to get a fixed-length key
-    embedding_bytes = norm_embedding.tobytes()
-    key = hashlib.sha256(embedding_bytes).digest()
-
-    return key
 
 def encrypt_watermark(watermark_data: Union[str, bytes], key: bytes) -> bytes:
     """
@@ -83,6 +63,3 @@ def decrypt_watermark(encrypted_data: bytes, key: bytes) -> Optional[bytes]:
     except Exception as e:
         print(f"Decryption error: {str(e)}")
         return None
-
-# Import this at the top level to avoid NameError
-from Crypto.Random import get_random_bytes
