@@ -1,6 +1,6 @@
 import streamlit as st
 
-from internal_pages.test_sections.face_encrypt_test import display_face_encrypt_test
+from internal_pages.test_sections.face_encrypt_decrypt_test import display_face_encrypt_test
 from internal_pages.test_sections.helper_data_comparison_test import display_helper_data_comparison_test
 
 
