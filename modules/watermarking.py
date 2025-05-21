@@ -1,354 +1,232 @@
-import base64
-from typing import Optional
-
-import cv2
 import numpy as np
-import streamlit as st
 from PIL import Image
+import io
+from scipy.fftpack import dct, idct
 
 from modules.constants import BLOCK_SIZE, ALPHA
 
-# Check if debug mode is enabled via session_state
-debug_mode = st.session_state.get("debug_mode", False)
-
-
-def dct_transform(block: np.ndarray) -> np.ndarray:
-    """
-    Apply Discrete Cosine Transform to an image block
-
-    Args:
-        block: Image block as numpy array
-
-    Returns:
-        DCT coefficients
-    """
-    return cv2.dct(np.float32(block))
-
-
-def idct_transform(dct_block: np.ndarray) -> np.ndarray:
-    """
-    Apply inverse Discrete Cosine Transform
-
-    Args:
-        dct_block: DCT coefficients
-
-    Returns:
-        Image block
-    """
-    return cv2.idct(dct_block)
-
-
-def embed_watermark(image: Image.Image, watermark_data: bytes) -> Image.Image:
-    """
-    Embed encrypted watermark data into an image using DCT and SVD
-
-    Args:
-        image: PIL Image to watermark
-        watermark_data: Encrypted watermark data as bytes
-
-    Returns:
-        Watermarked PIL Image
-    """
-    # Convert PIL Image to numpy array
-    img_array = np.array(image)
-
-    # Convert to YCrCb color space if image is RGB (we'll only modify Y channel)
-    if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-        # Convert RGB to YCrCb
-        img_ycrcb = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
-        y_channel = img_ycrcb[:, :, 0].copy()
-    else:
-        # Grayscale image
-        y_channel = img_array.copy()
-
-    # Ensure dimensions are multiples of block size
-    height, width = y_channel.shape
-    height_crop = height - (height % BLOCK_SIZE)
-    width_crop = width - (width % BLOCK_SIZE)
-    y_channel_cropped = y_channel[:height_crop, :width_crop]
-
-    # Encode watermark data as base64 string for reliable extraction
-    watermark_str = base64.b64encode(watermark_data).decode("utf-8")
-    watermark_bits = "".join(format(ord(c), "08b") for c in watermark_str)
-
-    # Store watermark length at the beginning to know how many bits to extract later
-    watermark_length_bits = format(len(watermark_bits), "032b")
-    watermark_bits = watermark_length_bits + watermark_bits
-
-    bit_index = 0
-    total_bits = len(watermark_bits)
-
-    # Process each block
-    for y in range(0, height_crop, BLOCK_SIZE):
-        for x in range(0, width_crop, BLOCK_SIZE):
-            if bit_index >= total_bits:
-                break
-
-            # Get current block
-            block = y_channel_cropped[y : y + BLOCK_SIZE, x : x + BLOCK_SIZE]
-
-            # Apply DCT
-            dct_block = dct_transform(block)
-
-            # Apply SVD to DCT coefficients
-            U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
-
-            # Modify singular values based on watermark bit
-            if bit_index < total_bits:
-                bit = int(watermark_bits[bit_index])
-
-                # Modify the mid-range singular value(s)
-                # This affects perceptibility and robustness
-                mod_index = min(1, len(S) - 1)  # Use second singular value if available
-
-                if bit == 1:
-                    S[mod_index] = np.ceil(S[mod_index] / ALPHA) * ALPHA
-                else:
-                    S[mod_index] = np.floor(S[mod_index] / ALPHA) * ALPHA
-
-                bit_index += 1
-
-            # Reconstruct block
-            dct_block = np.matmul(U, np.matmul(np.diag(S), Vt))
-
-            # Apply inverse DCT
-            modified_block = idct_transform(dct_block)
-
-            # Update image with watermarked block
-            y_channel_cropped[y : y + BLOCK_SIZE, x : x + BLOCK_SIZE] = modified_block
-
-    # Update Y channel in original image
-    if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-        img_ycrcb[:height_crop, :width_crop, 0] = y_channel_cropped
-        watermarked_img = cv2.cvtColor(img_ycrcb, cv2.COLOR_YCrCb2RGB)
-    else:
-        watermarked_img = y_channel_cropped.copy()
-
-    # Ensure output has same dimensions as input by padding if needed
-    if height_crop < height or width_crop < width:
-        if len(img_array.shape) == 3:
-            out_img = img_array.copy()
-            out_img[:height_crop, :width_crop, :] = watermarked_img[
-                :height_crop, :width_crop, :
-            ]
-            watermarked_img = out_img
-        else:
-            out_img = img_array.copy()
-            out_img[:height_crop, :width_crop] = watermarked_img[
-                :height_crop, :width_crop
-            ]
-            watermarked_img = out_img
-
-    # Convert back to PIL Image
-    return Image.fromarray(watermarked_img.astype(np.uint8))
-
-
-def extract_watermark(image: Image.Image) -> Optional[bytes]:
-    """
-    Extract watermark from a watermarked image
-
-    Args:
-        image: PIL Image with watermark
-
-    Returns:
-        Extracted watermark data as bytes, or None if extraction failed
-    """
-    # Convert PIL Image to numpy array
-    img_array = np.array(image)
-
-    # Convert to YCrCb color space if image is RGB
-    if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-        img_ycrcb = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
-        y_channel = img_ycrcb[:, :, 0].copy()
-    else:
-        y_channel = img_array.copy()
-
-    # Ensure dimensions are multiples of block size
-    height, width = y_channel.shape
-    height_crop = height - (height % BLOCK_SIZE)
-    width_crop = width - (width % BLOCK_SIZE)
-    y_channel_cropped = y_channel[:height_crop, :width_crop]
-
-    if debug_mode:
-        st.error(
-            f"DEBUG: Image dimensions for watermark extraction: {height_crop}x{width_crop}"
-        )
-
-    # First extract 32 bits to determine watermark length
-    extracted_bits = ""
-    length_bits_needed = 32
-    bit_index = 0
-
-    # Extract length bits
-    for y in range(0, height_crop, BLOCK_SIZE):
-        for x in range(0, width_crop, BLOCK_SIZE):
-            if bit_index >= length_bits_needed:
-                break
-
-            # Get current block
-            block = y_channel_cropped[y : y + BLOCK_SIZE, x : x + BLOCK_SIZE]
-
-            # Apply DCT
-            dct_block = dct_transform(block)
-
-            # Apply SVD
-            U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
-
-            # Extract bit from singular value
-            mod_index = min(1, len(S) - 1)
-            bit = 1 if (S[mod_index] % ALPHA) >= (ALPHA / 2) else 0
-
-            extracted_bits += str(bit)
-            bit_index += 1
-
-            if len(extracted_bits) >= length_bits_needed:
-                break
-
-        if len(extracted_bits) >= length_bits_needed:
-            break
-
-    if debug_mode:
-        st.error(f"DEBUG: Extracted length bits: {extracted_bits}")
-
-    # Parse watermark length
-    try:
-        watermark_length = int(extracted_bits[:length_bits_needed], 2)
-        if debug_mode:
-            st.error(f"DEBUG: Parsed watermark length: {watermark_length} bits")
-    except ValueError:
-        if debug_mode:
-            st.error(
-                f"DEBUG: Failed to parse watermark length from bits: {extracted_bits}"
-            )
-        return None
-
-    if watermark_length <= 0 or watermark_length > 1000000:  # Sanity check
-        if debug_mode:
-            st.error(
-                f"DEBUG: Invalid watermark length: {watermark_length} (must be > 0 and <= 1,000,000)"
-            )
-        return None
-
-    # Continue extracting watermark bits
-    total_bits_needed = length_bits_needed + watermark_length
-
-    # Reset for full extraction
-    extracted_bits = ""
-    bit_index = 0
-
-    # Extract all bits
-    for y in range(0, height_crop, BLOCK_SIZE):
-        for x in range(0, width_crop, BLOCK_SIZE):
-            if bit_index >= total_bits_needed:
-                break
-
-            # Get current block
-            block = y_channel_cropped[y : y + BLOCK_SIZE, x : x + BLOCK_SIZE]
-
-            # Apply DCT
-            dct_block = dct_transform(block)
-
-            # Apply SVD
-            U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
-
-            # Extract bit from singular value
-            mod_index = min(1, len(S) - 1)
-            bit = 1 if (S[mod_index] % ALPHA) >= (ALPHA / 2) else 0
-
-            extracted_bits += str(bit)
-            bit_index += 1
-
-            if len(extracted_bits) >= total_bits_needed:
-                break
-
-        if len(extracted_bits) >= total_bits_needed:
-            break
-
-    # Parse watermark length again and extract watermark bits
-    watermark_length = int(extracted_bits[:length_bits_needed], 2)
-    watermark_bits = extracted_bits[
-        length_bits_needed : length_bits_needed + watermark_length
-    ]
-
-    # Convert bits back to base64 string
-    watermark_bytes = bytearray()
-    for i in range(0, len(watermark_bits), 8):
-        if i + 8 <= len(watermark_bits):
-            byte = int(watermark_bits[i : i + 8], 2)
-            watermark_bytes.append(byte)
-
-    watermark_b64 = bytes(watermark_bytes).decode("utf-8", errors="ignore")
-
-    try:
-        # Decode base64 to get original watermark data
-        watermark_data = base64.b64decode(watermark_b64)
-        return watermark_data
-    except Exception:
-        return None
-
-
-def detect_watermark(image: Image.Image) -> bool:
-    """
-    Detect if an image likely contains a watermark created by this application.
-    This is a statistical test rather than a guaranteed detection.
-
-    Args:
-        image: PIL Image to check
-
-    Returns:
-        Boolean indicating if image likely contains a watermark
-    """
-    # Convert PIL Image to numpy array
-    img_array = np.array(image)
-
-    # Convert to YCrCb color space if image is RGB
-    if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-        img_ycrcb = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
-        y_channel = img_ycrcb[:, :, 0].copy()
-    else:
-        y_channel = img_array.copy()
-
-    # Ensure dimensions are multiples of block size
-    height, width = y_channel.shape
-    height_crop = height - (height % BLOCK_SIZE)
-    width_crop = width - (width % BLOCK_SIZE)
-    y_channel_cropped = y_channel[:height_crop, :width_crop]
-
-    # Sample blocks to analyze singular value distribution
-    modified_blocks = 0
-    total_blocks = 0
-    max_blocks_to_check = 100  # Limit check to 100 blocks for performance
-
-    # Check random blocks
-    blocks_to_check = min(
-        height_crop * width_crop // (BLOCK_SIZE * BLOCK_SIZE), max_blocks_to_check
+def rgb_to_ycbcr(img):
+    """Konversi gambar RGB ke YCbCr"""
+    # Pastikan gambar dalam format RGB (3 channel)
+    if isinstance(img, Image.Image):
+        img = img.convert("RGB")
+
+    img_array = np.array(img, dtype=np.float32) / 255.0
+
+    # Periksa dan tangani gambar RGBA
+    if img_array.shape[-1] == 4:
+        # Ambil hanya 3 channel pertama (RGB) dan abaikan alpha
+        img_array = img_array[:, :, :3]
+
+    # Matriks transformasi RGB ke YCbCr
+    transform = np.array(
+        [[0.299, 0.587, 0.114], [-0.169, -0.331, 0.5], [0.5, -0.419, -0.081]]
     )
 
-    for _ in range(blocks_to_check):
-        # Pick random block
-        y = np.random.randint(0, height_crop - BLOCK_SIZE + 1)
-        x = np.random.randint(0, width_crop - BLOCK_SIZE + 1)
+    # Konversi setiap pixel
+    ycbcr = np.zeros_like(img_array)
+    for i in range(img_array.shape[0]):
+        for j in range(img_array.shape[1]):
+            ycbcr[i, j, :] = np.dot(transform, img_array[i, j, :])
 
-        # Get block
-        block = y_channel_cropped[y : y + BLOCK_SIZE, x : x + BLOCK_SIZE]
+    # Offset komponen Cb dan Cr
+    ycbcr[:, :, 1:] += 0.5
 
-        # Apply DCT
-        dct_block = dct_transform(block)
+    return ycbcr
 
-        # Apply SVD
-        U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
 
-        # Check if second singular value is close to multiple of ALPHA
-        if len(S) > 1:
-            mod_index = 1  # Use second singular value
-            remainder = S[mod_index] % ALPHA
+def ycbcr_to_rgb(img):
+    """Konversi gambar YCbCr ke RGB"""
+    img_array = img.copy()
 
-            # If remainder is very close to 0 or ALPHA, likely modified
-            if remainder < 0.01 * ALPHA or remainder > 0.99 * ALPHA:
-                modified_blocks += 1
+    # Offset komponen Cb dan Cr
+    img_array[:, :, 1:] -= 0.5
 
-        total_blocks += 1
+    # Matriks transformasi YCbCr ke RGB
+    transform = np.array([[1.0, 0.0, 1.403], [1.0, -0.344, -0.714], [1.0, 1.773, 0.0]])
 
-    # If more than 30% of blocks show pattern of modification, likely watermarked
-    watermark_probability = modified_blocks / total_blocks if total_blocks > 0 else 0
-    return watermark_probability > 0.3
+    # Konversi setiap pixel
+    rgb = np.zeros_like(img_array)
+    for i in range(img_array.shape[0]):
+        for j in range(img_array.shape[1]):
+            rgb[i, j, :] = np.dot(transform, img_array[i, j, :])
+
+    # Clip nilai ke range [0, 1]
+    rgb = np.clip(rgb, 0, 1)
+
+    # Konversi kembali ke nilai 0-255
+    return (rgb * 255).astype(np.uint8)
+
+
+def apply_dct_to_block(block):
+    """Terapkan DCT 2D pada blok"""
+    return dct(dct(block.T, norm="ortho").T, norm="ortho")
+
+
+def apply_idct_to_block(block):
+    """Terapkan Inverse DCT 2D pada blok"""
+    return idct(idct(block.T, norm="ortho").T, norm="ortho")
+
+
+def resize_watermark(watermark, target_height, target_width):
+    """Ubah ukuran watermark agar sesuai dengan jumlah blok dalam gambar"""
+    watermark_img = (
+        Image.open(io.BytesIO(watermark)) if isinstance(watermark, bytes) else watermark
+    )
+
+    # Konversi ke grayscale
+    watermark_img = watermark_img.convert("L")
+
+    # Skalakan sesuai dengan target
+    watermark_resized = watermark_img.resize(
+        (target_width, target_height), Image.LANCZOS
+    )
+
+    return watermark_resized
+
+
+def embed_watermark(image, watermark_data):
+    """
+    Sisipkan watermark ke dalam gambar
+
+    Parameters:
+    image (PIL.Image.Image): Gambar asli dalam format RGB
+    watermark_data (bytes atau PIL.Image.Image): Data watermark
+
+    Returns:
+    PIL.Image.Image: Gambar hasil watermarking
+    """
+    # Pastikan gambar dalam format RGB
+    image = image.convert("RGB")
+
+    # Konversi watermark_data ke Image jika berbentuk bytes
+    if isinstance(watermark_data, bytes):
+        watermark_img = Image.open(io.BytesIO(watermark_data))
+    else:
+        watermark_img = watermark_data
+
+    # Konversi gambar asli ke array numpy
+    img_array = np.array(image)
+
+    # Konversi gambar asli ke YCbCr
+    ycbcr = rgb_to_ycbcr(image)
+
+    # Ambil channel Y (luminance)
+    Y = ycbcr[:, :, 0]
+
+    # Hitung jumlah blok dalam gambar
+    height, width = Y.shape
+    num_blocks_h = height // BLOCK_SIZE
+    num_blocks_w = width // BLOCK_SIZE
+
+    # Ukuran watermark harus sesuai dengan jumlah blok dalam gambar
+    watermark_resized = resize_watermark(watermark_img, num_blocks_h, num_blocks_w)
+    watermark_array = np.array(watermark_resized) / 255.0  # Normalisasi ke [0, 1]
+
+    # Iterasi melalui setiap blok 8x8
+    for i in range(num_blocks_h):
+        for j in range(num_blocks_w):
+            # Ekstrak blok 8x8 dari channel Y
+            block = Y[
+                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
+                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+            ]
+
+            # Terapkan DCT ke blok
+            dct_block = apply_dct_to_block(block)
+
+            # Terapkan SVD ke hasil DCT
+            U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
+
+            # Modifikasi nilai singular dengan nilai watermark
+            S[0] += ALPHA * watermark_array[i, j]
+
+            # Rekonstruksi blok dengan inverse SVD
+            modified_dct_block = np.dot(U, np.dot(np.diag(S), Vt))
+
+            # Terapkan inverse DCT
+            modified_block = apply_idct_to_block(modified_dct_block)
+
+            # Ganti blok asli dengan blok yang telah dimodifikasi
+            Y[
+                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
+                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+            ] = modified_block
+
+    # Ganti channel Y asli dengan Y yang telah dimodifikasi
+    ycbcr[:, :, 0] = Y
+
+    # Konversi kembali ke RGB
+    rgb_array = ycbcr_to_rgb(ycbcr)
+
+    # Buat gambar PIL dari array
+    watermarked_img = Image.fromarray(rgb_array)
+
+    return watermarked_img
+
+
+def extract_watermark(watermarked_image, original_image):
+    """
+    Ekstrak watermark dari gambar yang sudah disisipkan watermark
+
+    Parameters:
+    watermarked_image (PIL.Image.Image): Gambar yang disisipi watermark
+    original_image (PIL.Image.Image): Gambar asli sebelum disisipi watermark
+
+    Returns:
+    PIL.Image.Image: Watermark hasil ekstraksi
+    """
+    # Pastikan kedua gambar dalam format RGB
+    watermarked_image = watermarked_image.convert("RGB")
+    original_image = original_image.convert("RGB")
+
+    # Konversi gambar ke YCbCr
+    ycbcr_watermarked = rgb_to_ycbcr(watermarked_image)
+    ycbcr_original = rgb_to_ycbcr(original_image)
+
+    # Ambil channel Y (luminance)
+    Y_watermarked = ycbcr_watermarked[:, :, 0]
+    Y_original = ycbcr_original[:, :, 0]
+
+    # Hitung jumlah blok dalam gambar
+    height, width = Y_watermarked.shape
+    num_blocks_h = height // BLOCK_SIZE
+    num_blocks_w = width // BLOCK_SIZE
+
+    # Buat array untuk menyimpan hasil ekstraksi watermark
+    extracted_watermark = np.zeros((num_blocks_h, num_blocks_w))
+
+    # Iterasi melalui setiap blok 8x8
+    for i in range(num_blocks_h):
+        for j in range(num_blocks_w):
+            # Ekstrak blok 8x8 dari kedua gambar
+            block_watermarked = Y_watermarked[
+                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
+                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+            ]
+            block_original = Y_original[
+                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
+                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+            ]
+
+            # Terapkan DCT ke blok
+            dct_block_watermarked = apply_dct_to_block(block_watermarked)
+            dct_block_original = apply_dct_to_block(block_original)
+
+            # Terapkan SVD ke hasil DCT
+            _, S_watermarked, _ = np.linalg.svd(
+                dct_block_watermarked, full_matrices=True
+            )
+            _, S_original, _ = np.linalg.svd(dct_block_original, full_matrices=True)
+
+            # Ekstrak watermark dengan menghitung selisih singular value yang dimodifikasi
+            extracted_watermark[i, j] = (S_watermarked[0] - S_original[0]) / ALPHA
+
+    # Normalisasi hasil ke range [0, 255]
+    extracted_watermark = np.clip(extracted_watermark, 0, 1)
+    extracted_watermark = (extracted_watermark * 255).astype(np.uint8)
+
+    # Buat gambar PIL dari array
+    extracted_img = Image.fromarray(extracted_watermark)
+
+    return extracted_img

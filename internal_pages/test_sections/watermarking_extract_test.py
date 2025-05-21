@@ -4,82 +4,113 @@ import time
 import streamlit as st
 from PIL import Image
 
-from modules.watermarking import extract_watermark, detect_watermark
+from modules.watermarking import extract_watermark
 
 
 def display_watermark_extract_test():
     st.subheader("Watermark Extracting Test")
-    st.markdown("""
-    This test allows you to test the watermark extraction functionality.
+    st.markdown(
+        """
+    Watermark extraction test:
     
-    1. Upload a watermarked image
-    2. The system will attempt to extract the watermark and show statistics
-    """)
+    1. Upload original image
+    2. Upload watermarked image
+    3. System will extract watermark and display results
+    """
+    )
+
+    st.markdown("### Original Image")
+    original_file = st.file_uploader(
+        "Upload original image",
+        type=["jpg", "jpeg", "png"],
+        key="extract_test_original_image",
+    )
+
+    original_img = None
+    if original_file:
+        original_img = Image.open(original_file)
+        st.image(original_img, caption="Original Image", use_container_width=True)
 
     # Upload watermarked image
     st.markdown("### Watermarked Image")
-    watermarked_file = st.file_uploader("Upload watermarked image", type=["jpg", "jpeg", "png"], key="extract_test_image")
-    
+    watermarked_file = st.file_uploader(
+        "Upload watermarked image",
+        type=["jpg", "jpeg", "png"],
+        key="extract_test_image",
+    )
+
+    watermarked_img = None
     if watermarked_file:
         watermarked_img = Image.open(watermarked_file)
-        st.image(watermarked_img, caption="Watermarked Image", use_container_width=True)
+        st.image(
+            watermarked_img, caption="Watermarked Image", use_container_width=True
+        )
 
-    # Extract watermark button
-    if st.button("Extract Watermark", disabled=not watermarked_file):
+    # Extract watermark button - disabled if either image is not uploaded
+    if st.button("Extract Watermark", disabled=not (original_img and watermarked_img)):
         with st.spinner("Extracting watermark..."):
             start_time = time.time()
-            
-            # First check if the image likely contains a watermark
-            has_watermark = detect_watermark(watermarked_img)
-            
+
             # Extract watermark
-            extracted_data = extract_watermark(watermarked_img)
-            
+            extracted_img = extract_watermark(watermarked_img, original_img)
+
             processing_time = time.time() - start_time
-            
-            # Display results
-            if has_watermark:
-                st.success(f"Image appears to contain a watermark (confidence: {has_watermark:.2f})")
-            else:
-                st.warning(f"Image does not appear to contain a watermark (confidence: {1-has_watermark:.2f})")
-            
-            if extracted_data:
-                st.success(f"Watermark extracted successfully in {processing_time:.3f} seconds!")
-                
-                # Determine if watermark is text or image
-                try:
-                    # Try to decode as text
-                    watermark_text = extracted_data.decode('utf-8')
-                    st.subheader("Extracted Text Watermark")
-                    st.text_area("Extracted Text", watermark_text, height=150)
-                except UnicodeDecodeError:
-                    # If not text, try as image
-                    try:
-                        watermark_img = Image.open(io.BytesIO(extracted_data))
-                        st.subheader("Extracted Image Watermark")
-                        st.image(watermark_img, caption="Extracted Watermark", use_container_width=True)
-                    except Exception:
-                        st.error("Could not interpret the extracted watermark as text or image.")
-                        st.markdown("**Raw extracted data (hex):**")
-                        st.code(extracted_data.hex()[:100] + "..." if len(extracted_data.hex()) > 100 else extracted_data.hex())
-                
+
+            if extracted_img:
+                st.success(
+                    f"Watermark successfully extracted in {processing_time:.3f} seconds!"
+                )
+
+                st.subheader("Watermark Extraction Results")
+
+                # Display 3 images: original, watermarked, and extracted
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.markdown("**Original Image**")
+                    st.image(original_img, use_container_width=True)
+
+                with col2:
+                    st.markdown("**Watermarked Image**")
+                    st.image(watermarked_img, use_container_width=True)
+
+                with col3:
+                    st.markdown("**Extracted Watermark**")
+                    st.image(
+                        extracted_img,
+                        caption="Extracted Watermark",
+                        use_container_width=True,
+                    )
+
+                # Download extracted watermark image
+                img_byte_arr = io.BytesIO()
+                extracted_img.save(img_byte_arr, format="PNG")
+
+                st.download_button(
+                    label="Download Watermark Image",
+                    data=img_byte_arr.getvalue(),
+                    file_name="extracted_watermark.png",
+                    mime="image/png",
+                )
+
                 # Display statistics
                 st.subheader("Extraction Statistics")
                 st.markdown(f"**Extraction Time:** {processing_time:.3f} seconds")
-                st.markdown(f"**Extracted Data Size:** {len(extracted_data)} bytes")
-                
-                # Download extracted data
-                st.download_button(
-                    label="Download Extracted Data",
-                    data=extracted_data,
-                    file_name="extracted_watermark",
-                    mime="application/octet-stream"
+                watermark_width, watermark_height = extracted_img.size
+                original_width, original_height = original_img.size
+                st.markdown(
+                    f"**Original Image Size:** {original_width}x{original_height} pixels"
+                )
+                st.markdown(
+                    f"**Watermark Size:** {watermark_width}x{watermark_height} pixels"
                 )
             else:
-                st.error("Failed to extract watermark from the image.")
-                st.markdown("""
-                This could be due to:
-                - The image doesn't contain a watermark
-                - The watermark was damaged by image modifications
-                - The watermark was embedded with a different algorithm
-                """)
+                st.error("Failed to extract watermark from image.")
+                st.markdown(
+                    """
+                This may be due to:
+                - Image does not contain a watermark
+                - Watermark damaged due to image modification
+                - Watermark embedded with different algorithm
+                """
+                )
