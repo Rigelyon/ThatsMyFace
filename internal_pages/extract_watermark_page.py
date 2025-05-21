@@ -66,9 +66,9 @@ def display_extract_watermark_page(debug_mode=False):
         elif not watermarked_file:
             st.error("Please upload the watermarked image.")
         elif not helper_file:
-            st.error("Plase upload the helper data file.")
+            st.error("Please upload the helper data file.")
         else:
-            with st.spinner("Extrating watermark..."):
+            with st.spinner("Extracting watermark..."):
                 try:
                     # Process the authentication face
                     auth_image_array = np.array(auth_img)

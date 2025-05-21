@@ -125,6 +125,7 @@ def display_embed_watermark_page(debug_mode=False):
                     helper_filename = f"output/helpers/helper_data_{int(time.time())}.bin"
                     save_helper_data(helper_data, helper_filename)
 
+                    # TODO: Results layout
                     for i, uploaded_file in enumerate(uploaded_files[:MAX_IMAGES]):
                         status_text.text(f"Processing image {i + 1}/{len(uploaded_files[:MAX_IMAGES])}...")
                         progress_value = (i + 1) / len(uploaded_files[:MAX_IMAGES])
