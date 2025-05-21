@@ -1,10 +1,11 @@
 # Constants
 MAX_IMAGES = 10
 MAX_WATERMARK_SIZE = 1024  # Maximum watermark size in bytes
+MAX_WATERMARK_RESOLUTION = 1000  # Maximum watermark resolution in pixels
 
 # Constants for watermarking
-BLOCK_SIZE = 8
-ALPHA = 0.1  # Strength of watermark (lower means less visible)
+BLOCK_SIZE = 8  # Ukuran blok 8x8 untuk DCT
+ALPHA = 0.1  # Faktor kekuatan watermark
 MAX_SVD_COEFFICIENTS = 10  # Number of singular values to modify
 
 # Settings for face recognition

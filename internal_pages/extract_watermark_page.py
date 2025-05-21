@@ -8,7 +8,7 @@ from modules.encryption import decrypt_watermark
 from modules.face_recognition import get_face_embedding
 from modules.fuzzy_extractor import regenerate_key_from_helper
 from modules.utils import deserialize_helper_data
-from modules.watermarking import extract_watermark, detect_watermark
+from modules.watermarking import extract_watermark
 
 
 def display_extract_watermark_page(debug_mode=False):
@@ -73,11 +73,6 @@ def display_extract_watermark_page(debug_mode=False):
 
                     # Extract watermark
                     watermarked_img = Image.open(watermarked_file)
-
-                    # First detect if image likely contains a watermark
-                    has_watermark = detect_watermark(watermarked_img)
-                    if has_watermark:
-                        st.write("Image appears to contain a watermark.")
 
                     if debug_mode:
                         st.write("DEBUG: Attempting to extract watermark...")
