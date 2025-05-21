@@ -51,8 +51,8 @@ def display_watermark_embed_test():
 
     if watermark_file:
         # Validate file size (2MB = 2 * 1024 * 1024 bytes)
-        if watermark_file.size > 2 * MAX_WATERMARK_SIZE * MAX_WATERMARK_SIZE:
-            st.error(f"Watermark file size too large! Max {MAX_WATERMARK_SIZE}x{MAX_WATERMARK_SIZE} pixels.")
+        if watermark_file.size > MAX_WATERMARK_SIZE:
+            st.error(f"Watermark size exceeds the maximum allowed size ({MAX_WATERMARK_SIZE} MB).")
         else:
             watermark_image = Image.open(watermark_file)
 
