@@ -1,6 +1,7 @@
 import io
 import os
 import time
+import zipfile
 
 import numpy as np
 import streamlit as st
@@ -11,10 +12,9 @@ from modules.encryption import encrypt_watermark
 from modules.face_recognition import (
     get_face_embedding,
     check_face_match,
-    calculate_similarity,
 )
 from modules.fuzzy_extractor import generate_key_with_helper
-from modules.utils import has_face, convert_to_bytes, save_helper_data
+from modules.utils import has_face, save_helper_data
 from modules.watermarking import embed_watermark
 
 
@@ -75,10 +75,14 @@ def display_embed_watermark_page(debug_mode=False):
 
     st.subheader("4. Upload Images to Watermark")
     uploaded_files = st.file_uploader(
-        f"Upload images (max {MAX_IMAGES} files)",
+        f"Select images to watermark (max {MAX_IMAGES} files)",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
     )
+    if uploaded_files:
+        st.write(f"{len(uploaded_files)} files uploaded")
+        if len(uploaded_files) > 10:
+            st.warning(f"Using more than 10 images may take a while to process.")
 
     # Authentication option
     st.subheader("5. Watermarking Options")
@@ -134,25 +138,27 @@ def display_embed_watermark_page(debug_mode=False):
                     # )
 
                     progress_bar = st.progress(0)
-                    status_text = st.empty()
+                    status_text_1 = st.empty()
+                    status_text_2 = st.empty()
+                    status_text_3 = st.empty()
                     results_container = st.container()
                     watermarked = []
                     not_watermarked = []
 
-                    # Create directory for helper files if it doesn't exist
-                    if not os.path.exists("output/helpers"):
-                        os.makedirs("output/helpers")
+                    # Create temporary directory for helper files
+                    temp_helper_dir = "output/helpers"
+                    if not os.path.exists(temp_helper_dir):
+                        os.makedirs(temp_helper_dir)
 
-                    # Save helper data to a file
+                    # Save helper data to a temporary file
                     helper_filename = (
-                        f"output/helpers/helper_data_{int(time.time())}.bin"
+                        f"{temp_helper_dir}/helper_data_{int(time.time())}.bin"
                     )
                     save_helper_data(helper_data, helper_filename)
 
-                    # TODO: Results layout
                     for i, uploaded_file in enumerate(uploaded_files[:MAX_IMAGES]):
-                        status_text.text(
-                            f"Processing image {i + 1}/{len(uploaded_files[:MAX_IMAGES])}..."
+                        status_text_1.text(
+                            f"Processing image {i + 1}/{len(uploaded_files[:MAX_IMAGES])}... Filename: {uploaded_file.name[:30]}{'...' if len(uploaded_file.name) > 30 else ''}"
                         )
                         progress_value = (i + 1) / len(uploaded_files[:MAX_IMAGES])
                         progress_bar.progress(progress_value)
@@ -169,15 +175,20 @@ def display_embed_watermark_page(debug_mode=False):
 
                         # Apply watermark if conditions are met
                         if should_watermark:
-                            watermarked_img = embed_watermark(img, watermark_img)
-                            watermarked.append((uploaded_file.name, watermarked_img))
+                            spinner_text = "Found face in image. Embedding watermark..." if auth_required else "Embedding watermark..."
+                            with st.spinner(spinner_text):
+                                watermarked_img = embed_watermark(img, watermark_img)
+                                watermarked.append((uploaded_file.name, watermarked_img))
                         else:
-                            not_watermarked.append(uploaded_file.name)
+                            spinner_text = "No face found in image. Skipping..." if auth_required else "Skipping..."
+                            with st.spinner(spinner_text):
+                                not_watermarked.append((uploaded_file.name, img))
 
                         time.sleep(0.1)  # Small delay for UI feedback
 
                     # Show results
-                    status_text.text("Processing complete!")
+                    status_text_1.text("Processing complete!")
+                    status_text_2.text("")
 
                     with results_container:
                         st.subheader("Results")
@@ -193,6 +204,7 @@ def display_embed_watermark_page(debug_mode=False):
                             mime="application/octet-stream",
                             help="This file is required to extract watermarks later. Keep it safe!",
                             key="download_helper",
+                            on_click=lambda: os.remove(helper_filename) if os.path.exists(helper_filename) else None
                         )
 
                         st.info(
@@ -201,33 +213,55 @@ def display_embed_watermark_page(debug_mode=False):
 
                         # Display watermarked images
                         if watermarked:
-                            st.write(f"**{len(watermarked)} images were watermarked:**")
+                            st.subheader(f"**✅ {len(watermarked)} images were watermarked:**")
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                                for name, img in watermarked:
+                                    img_bytes = io.BytesIO()
+                                    img.save(img_bytes, format="PNG") 
+                                    zip_file.writestr(f"watermarked_{name}", img_bytes.getvalue())
+                            st.download_button(
+                                label="⬇️ Download All Watermarked Images",
+                                data=zip_buffer.getvalue(),
+                                file_name="watermarked_images.zip",
+                                mime="application/zip",
+                                help="Download all watermarked images in ZIP format"
+                            )
                             cols = st.columns(min(3, len(watermarked)))
 
                             for i, (name, img) in enumerate(watermarked):
                                 col_idx = i % len(cols)
                                 with cols[col_idx]:
                                     st.image(
-                                        img, caption=name, width=200
+                                        img, caption=name, width=300
                                     )
 
                                     # Save button for each image
-                                    img_bytes = io.BytesIO()
-                                    img.save(img_bytes, format="PNG")
+                                    watermarked_img_bytes = io.BytesIO()
+                                    img.save(watermarked_img_bytes, format="PNG")
                                     st.download_button(
                                         label="Download",
-                                        data=img_bytes.getvalue(),
+                                        data=watermarked_img_bytes.getvalue(),
                                         file_name=f"watermarked_{name}",
                                         mime="image/png",
-                                        key=f"download_btn_{i}",
+                                        key=f"watermarked_download_btn_{i}",
                                     )
 
                         # List images that were not watermarked
                         if not_watermarked:
-                            st.write(
-                                f"**{len(not_watermarked)} images were not watermarked** (no matching face found):"
+                            st.subheader(
+                                f"**❎ {len(not_watermarked)} images were not watermarked** (no matching face found):"
                             )
-                            st.write(", ".join(not_watermarked))
+                            cols = st.columns(min(3, len(not_watermarked)))
+
+                            for i, (name, img) in enumerate(not_watermarked):
+                                col_idx = i % len(cols)
+                                with cols[col_idx]:
+                                    st.image(
+                                        img, caption=name, width=300
+                                    )
 
             except Exception as e:
                 st.error(f"An error occurred during processing: {str(e)}")
+                if os.path.exists(helper_filename):
+                    os.remove(helper_filename)
