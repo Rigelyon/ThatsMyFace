@@ -42,9 +42,7 @@ def display_watermark_extract_test():
     watermarked_img = None
     if watermarked_file:
         watermarked_img = Image.open(watermarked_file)
-        st.image(
-            watermarked_img, caption="Watermarked Image", use_container_width=True
-        )
+        st.image(watermarked_img, caption="Watermarked Image", use_container_width=True)
 
     # Extract watermark button - disabled if either image is not uploaded
     if st.button("Extract Watermark", disabled=not (original_img and watermarked_img)):

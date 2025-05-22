@@ -1,6 +1,6 @@
 # Constants
-MAX_IMAGES = 10
-MAX_WATERMARK_SIZE = 1024  # Maximum watermark size in bytes
+MAX_IMAGES = 30
+MAX_WATERMARK_SIZE = 1024 * 1024 * 2 # Maximum watermark size in bytes. 2MB
 MAX_WATERMARK_RESOLUTION = 1000  # Maximum watermark resolution in pixels
 
 # Constants for watermarking

@@ -5,6 +5,7 @@ from scipy.fftpack import dct, idct
 
 from modules.constants import BLOCK_SIZE, ALPHA
 
+
 def rgb_to_ycbcr(img):
     """Konversi gambar RGB ke YCbCr"""
     # Pastikan gambar dalam format RGB (3 channel)
