@@ -7,7 +7,11 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
-from modules.constants import MAX_IMAGES, MAX_WATERMARK_SIZE, MAX_WATERMARK_RESOLUTION
+from modules.constants import (
+    MAX_IMAGES,
+    MAX_WATERMARK_CHARACTERS,
+    QRCODE_SIZE,
+)
 from modules.encryption import encrypt_watermark
 from modules.face_recognition import (
     get_face_embedding,
@@ -16,6 +20,7 @@ from modules.face_recognition import (
 from modules.fuzzy_extractor import generate_key_with_helper
 from modules.utils import has_face, save_helper_data
 from modules.watermarking import embed_watermark
+from modules.qrcode_generator import text_to_qrcode
 
 
 def display_embed_watermark_page(debug_mode=False):
@@ -195,35 +200,33 @@ def display_embed_watermark_page(debug_mode=False):
         )
 
     # Step 3
-    st.header("Step 3: Upload Watermark")
+    st.header("Step 3: Enter Watermark Text")
     st.markdown(
-        f"Watermark Requirements:\n"
-        f"- Format: JPG, JPEG, or PNG\n"
-        f"- Maximum Size: {MAX_WATERMARK_SIZE / (1024 * 1024)} MB\n"
-        f"- Maximum Resolution: {MAX_WATERMARK_RESOLUTION} x {MAX_WATERMARK_RESOLUTION} pixels\n\n"
-        f"This is the image that will be embedded as an invisible watermark."
+        "Enter the text you want to use as a watermark. This text will be encrypted and converted to a QR code."
     )
 
-    watermark_file = st.file_uploader(
-        "Upload your watermark image", type=["jpg", "jpeg", "png"]
+    watermark_text = st.text_area(
+        "Enter text for watermark",
+        max_chars=MAX_WATERMARK_CHARACTERS,
+        height=100,
+        key="watermark_text_input",
+        placeholder="Enter your watermark text here (maximum 100 characters)",
     )
-    if watermark_file:
-        watermark_img = Image.open(watermark_file)
+
+    # Tampilkan preview QR code jika teks telah dimasukkan
+    if watermark_text:
+        # Buat QR code preview
+        qr_image = text_to_qrcode(watermark_text, (QRCODE_SIZE, QRCODE_SIZE))
+
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(
-                watermark_img,
-                caption=f"Watermark Image ({watermark_img.width}x{watermark_img.height})",
-                width=200,
-            )
+            st.image(qr_image, caption="QR Code Preview (before encryption)", width=200)
         with col2:
-            img_byte_arr = io.BytesIO()
-            watermark_img.save(
-                img_byte_arr,
-                format=watermark_img.format if watermark_img.format else "PNG",
+            st.success("Watermark text ready for embedding!")
+            st.info(
+                f"Character count: {len(watermark_text)}/{MAX_WATERMARK_CHARACTERS}\n"
+                "The text will be encrypted and embedded as a QR code."
             )
-            watermark_data = img_byte_arr.getvalue()
-            st.success("Watermark image uploaded successfully!")
 
     # Step 4
     st.header("Step 4: Upload Images to Watermark")
@@ -270,17 +273,17 @@ def display_embed_watermark_page(debug_mode=False):
     st.write("")  # Add some space
     process_btn = st.button(
         "🚀 Process Images",
-        disabled=not (auth_face and watermark_file and uploaded_files),
+        disabled=not (auth_face and watermark_text and uploaded_files),
         key="process_btn",
     )
 
-    if not (auth_face and watermark_file and uploaded_files):
+    if not (auth_face and watermark_text and uploaded_files):
         warning_message = "Please complete all required fields before processing:"
         missing_items = []
         if not auth_face:
             missing_items.append("- Upload an authentication face image")
-        if not watermark_file:
-            missing_items.append("- Upload a watermark image")
+        if not watermark_text:
+            missing_items.append("- Enter watermark text")
         if not uploaded_files:
             missing_items.append("- Upload at least one image to watermark")
 
@@ -290,24 +293,13 @@ def display_embed_watermark_page(debug_mode=False):
         # Validate inputs
         if not auth_face or not has_face(Image.open(auth_face)):
             st.error("Authentication image must contain a clearly visible face.")
-        elif not watermark_file:
-            st.error("Please upload a watermark image.")
+        elif not watermark_text:
+            st.error("Please enter watermark text.")
         elif not uploaded_files:
             st.error("Please upload at least one image to watermark.")
         elif len(uploaded_files) > MAX_IMAGES:
             st.error(
                 f"Maximum {MAX_IMAGES} images allowed. Please reduce the number of uploads."
-            )
-        elif watermark_file.size > MAX_WATERMARK_SIZE:
-            st.error(
-                f"Watermark size exceeds the maximum allowed size ({MAX_WATERMARK_SIZE / (1024 * 1024)} MB)."
-            )
-        elif (
-            watermark_img.width > MAX_WATERMARK_RESOLUTION
-            or watermark_img.height > MAX_WATERMARK_RESOLUTION
-        ):
-            st.error(
-                f"Watermark image resolution too large ({watermark_img.width}x{watermark_img.height})! Maximum {MAX_WATERMARK_RESOLUTION}x{MAX_WATERMARK_RESOLUTION} pixels."
             )
         else:
             try:
@@ -360,6 +352,20 @@ def display_embed_watermark_page(debug_mode=False):
                         helper_data_bytes
                     )
 
+                    # Enkripsi teks watermark dan konversi ke QR code
+                    with st.spinner("🔐 Encrypting watermark text..."):
+                        encrypted_data = encrypt_watermark(
+                            watermark_text, encryption_key
+                        )
+                        qr_watermark = text_to_qrcode(
+                            encrypted_data, (QRCODE_SIZE, QRCODE_SIZE)
+                        )
+
+                        # Konversi ke bytes
+                        qr_bytes = io.BytesIO()
+                        qr_watermark.save(qr_bytes, format="PNG")
+                        watermark_data = qr_bytes.getvalue()
+
                     for i, uploaded_file in enumerate(uploaded_files[:MAX_IMAGES]):
                         status_text.info(
                             f"Processing image {i + 1}/{len(uploaded_files[:MAX_IMAGES])}: {uploaded_file.name[:30]}{'...' if len(uploaded_file.name) > 30 else ''}"
@@ -385,7 +391,9 @@ def display_embed_watermark_page(debug_mode=False):
                                 else "💧 Embedding watermark..."
                             )
                             with st.spinner(spinner_text):
-                                watermarked_img = embed_watermark(img, watermark_img)
+                                watermarked_img = embed_watermark(
+                                    img, watermark_data, preserve_ratio=True
+                                )
                                 # Konversi ke bytes untuk disimpan dalam session state
                                 img_bytes = io.BytesIO()
                                 watermarked_img.save(img_bytes, format="PNG")

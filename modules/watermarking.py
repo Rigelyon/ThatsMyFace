@@ -69,8 +69,18 @@ def apply_idct_to_block(block):
     return idct(idct(block.T, norm="ortho").T, norm="ortho")
 
 
-def resize_watermark(watermark, target_height, target_width):
-    """Ubah ukuran watermark agar sesuai dengan jumlah blok dalam gambar"""
+def resize_watermark(watermark, target_height, target_width, preserve_ratio=False):
+    """Ubah ukuran watermark agar sesuai dengan jumlah blok dalam gambar
+
+    Parameters:
+    watermark (bytes atau PIL.Image): Data watermark
+    target_height (int): Tinggi target
+    target_width (int): Lebar target
+    preserve_ratio (bool): Jika True, pertahankan aspect ratio dan tambahkan padding putih
+
+    Returns:
+    PIL.Image: Watermark yang telah diubah ukurannya
+    """
     watermark_img = (
         Image.open(io.BytesIO(watermark)) if isinstance(watermark, bytes) else watermark
     )
@@ -78,21 +88,44 @@ def resize_watermark(watermark, target_height, target_width):
     # Konversi ke grayscale
     watermark_img = watermark_img.convert("L")
 
-    # Skalakan sesuai dengan target
-    watermark_resized = watermark_img.resize(
-        (target_width, target_height), Image.LANCZOS
-    )
+    if preserve_ratio:
+        # Hitung ukuran baru dengan mempertahankan aspect ratio
+        original_width, original_height = watermark_img.size
+        ratio = min(target_width / original_width, target_height / original_height)
+        new_width = int(original_width * ratio)
+        new_height = int(original_height * ratio)
 
-    return watermark_resized
+        # Ubah ukuran watermark dengan mempertahankan aspect ratio
+        resized_watermark = watermark_img.resize((new_width, new_height), Image.LANCZOS)
+
+        # Buat gambar putih dengan ukuran target
+        final_watermark = Image.new("L", (target_width, target_height), 255)
+
+        # Hitung posisi untuk meletakkan watermark di tengah
+        paste_x = (target_width - new_width) // 2
+        paste_y = (target_height - new_height) // 2
+
+        # Tempelkan watermark yang diubah ukurannya ke gambar putih
+        final_watermark.paste(resized_watermark, (paste_x, paste_y))
+
+        return final_watermark
+    else:
+        # Metode lama: skalakan langsung ke ukuran target
+        watermark_resized = watermark_img.resize(
+            (target_width, target_height), Image.LANCZOS
+        )
+
+        return watermark_resized
 
 
-def embed_watermark(image, watermark_data):
+def embed_watermark(image, watermark_data, preserve_ratio=False):
     """
     Sisipkan watermark ke dalam gambar
 
     Parameters:
     image (PIL.Image.Image): Gambar asli dalam format RGB
     watermark_data (bytes atau PIL.Image.Image): Data watermark
+    preserve_ratio (bool): Jika True, watermark akan mempertahankan aspect ratio
 
     Returns:
     PIL.Image.Image: Gambar hasil watermarking
@@ -121,7 +154,9 @@ def embed_watermark(image, watermark_data):
     num_blocks_w = width // BLOCK_SIZE
 
     # Ukuran watermark harus sesuai dengan jumlah blok dalam gambar
-    watermark_resized = resize_watermark(watermark_img, num_blocks_h, num_blocks_w)
+    watermark_resized = resize_watermark(
+        watermark_img, num_blocks_h, num_blocks_w, preserve_ratio
+    )
     watermark_array = np.array(watermark_resized) / 255.0  # Normalisasi ke [0, 1]
 
     # Iterasi melalui setiap blok 8x8
