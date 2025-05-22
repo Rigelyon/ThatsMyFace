@@ -104,8 +104,7 @@ def display_embed_watermark_page(debug_mode=False):
             st.error(
                 f"Watermark size exceeds the maximum allowed size ({MAX_WATERMARK_SIZE / (1024 * 1024)} MB)."
             )
-        elif watermark_file:
-            if (
+        elif (
                 watermark_img.width > MAX_WATERMARK_RESOLUTION
                 or watermark_img.height > MAX_WATERMARK_RESOLUTION
             ):
@@ -130,9 +129,9 @@ def display_embed_watermark_page(debug_mode=False):
                     )
 
                     # Encrypt watermark
-                    encrypted_watermark = encrypt_watermark(
-                        watermark_img, encryption_key
-                    )
+                    # encrypted_watermark = encrypt_watermark(
+                    #     watermark_img, encryption_key
+                    # )
 
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -170,7 +169,7 @@ def display_embed_watermark_page(debug_mode=False):
 
                         # Apply watermark if conditions are met
                         if should_watermark:
-                            watermarked_img = embed_watermark(img, encrypted_watermark)
+                            watermarked_img = embed_watermark(img, watermark_img)
                             watermarked.append((uploaded_file.name, watermarked_img))
                         else:
                             not_watermarked.append(uploaded_file.name)
@@ -209,7 +208,7 @@ def display_embed_watermark_page(debug_mode=False):
                                 col_idx = i % len(cols)
                                 with cols[col_idx]:
                                     st.image(
-                                        img, caption=name, use_container_width=True
+                                        img, caption=name, width=200
                                     )
 
                                     # Save button for each image
