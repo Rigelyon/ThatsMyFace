@@ -18,15 +18,17 @@ def display_extract_watermark_page(debug_mode=False):
     st.subheader("1. Upload Authentication Face")
     auth_face = st.file_uploader(
         "Upload a face image for authentication (can be different from the one used for embedding)",
-        type=["jpg", "jpeg", "png"])
+        type=["jpg", "jpeg", "png"],
+    )
     if auth_face:
         auth_img = Image.open(auth_face)
         st.image(auth_img, caption="Original Image", use_container_width=True)
 
     # Upload helper data file
     st.subheader("2. Upload Helper Data File")
-    helper_file = st.file_uploader("Upload the helper data file generated during watermark embedding",
-                                   type=["bin"])
+    helper_file = st.file_uploader(
+        "Upload the helper data file generated during watermark embedding", type=["bin"]
+    )
 
     st.subheader("3. Upload Images File")
     col1, col2 = st.columns(2)
@@ -58,7 +60,10 @@ def display_extract_watermark_page(debug_mode=False):
                 watermarked_img, caption="Watermarked Image", use_container_width=True
             )
 
-    if st.button("Extract Watermark", disabled=not (auth_face and helper_file and watermarked_file)):
+    if st.button(
+        "Extract Watermark",
+        disabled=not (auth_face and helper_file and watermarked_file),
+    ):
         if not auth_face or not has_face(Image.open(auth_face)):
             st.error("Authentication image must contain a clearly visible face.")
         elif not original_file:
@@ -84,31 +89,47 @@ def display_extract_watermark_page(debug_mode=False):
 
                         # Debug: Show helper data information
                         if debug_mode:
-                            st.write("DEBUG: Helper data loaded:", {
-                                'error_tolerance': helper_data.get('error_tolerance'),
-                                'vector_shape': helper_data.get('vector_shape'),
-                                'vector_mean': helper_data.get('vector_mean'),
-                                'vector_std': helper_data.get('vector_std')
-                            })
-                            st.write("DEBUG: Current face embedding stats:", {
-                                'mean': float(np.mean(embedding)),
-                                'std': float(np.std(embedding)),
-                                'min': float(np.min(embedding)),
-                                'max': float(np.max(embedding)),
-                                'shape': embedding.shape
-                            })
+                            st.write(
+                                "DEBUG: Helper data loaded:",
+                                {
+                                    "error_tolerance": helper_data.get(
+                                        "error_tolerance"
+                                    ),
+                                    "vector_shape": helper_data.get("vector_shape"),
+                                    "vector_mean": helper_data.get("vector_mean"),
+                                    "vector_std": helper_data.get("vector_std"),
+                                },
+                            )
+                            st.write(
+                                "DEBUG: Current face embedding stats:",
+                                {
+                                    "mean": float(np.mean(embedding)),
+                                    "std": float(np.std(embedding)),
+                                    "min": float(np.min(embedding)),
+                                    "max": float(np.max(embedding)),
+                                    "shape": embedding.shape,
+                                },
+                            )
 
                         # Generate encryption key from face embedding using helper data
-                        decryption_key = regenerate_key_from_helper(embedding, helper_data)
+                        decryption_key = regenerate_key_from_helper(
+                            embedding, helper_data
+                        )
 
                         if decryption_key is b"":
-                            st.error("Failed to regenerate key. The face may be too different from the original one.")
+                            st.error(
+                                "Failed to regenerate key. The face may be too different from the original one."
+                            )
                             st.info(
-                                "Try using a clearer photo of the same person or adjust error tolerance during embedding.")
+                                "Try using a clearer photo of the same person or adjust error tolerance during embedding."
+                            )
                         else:
                             # Debug: Show key information
                             if debug_mode:
-                                st.write("DEBUG: Regenerated key (first 8 bytes hex):", decryption_key[:8].hex())
+                                st.write(
+                                    "DEBUG: Regenerated key (first 8 bytes hex):",
+                                    decryption_key[:8].hex(),
+                                )
 
                             if debug_mode:
                                 st.write("DEBUG: Attempting to extract watermark...")
@@ -116,22 +137,32 @@ def display_extract_watermark_page(debug_mode=False):
 
                             if encrypted_watermark:
                                 if debug_mode:
-                                    st.write("DEBUG: Watermark extraction successful! Length:", len(encrypted_watermark))
+                                    st.write(
+                                        "DEBUG: Watermark extraction successful! Length:",
+                                        len(encrypted_watermark),
+                                    )
 
                                 # Decrypt watermark
                                 try:
-                                    decrypted_watermark_img = decrypt_watermark(encrypted_watermark, decryption_key)
+                                    decrypted_watermark_img = decrypt_watermark(
+                                        encrypted_watermark, decryption_key
+                                    )
                                     if decrypted_watermark_img:
                                         st.success("Watermark extracted successfully!")
                                         st.subheader("Watermark Extraction Results")
                                         col1, col2, col3 = st.columns(3)
                                         with col1:
                                             st.markdown("**Original Image**")
-                                            st.image(original_img, use_container_width=True)
+                                            st.image(
+                                                original_img, use_container_width=True
+                                            )
 
                                         with col2:
                                             st.markdown("**Watermarked Image**")
-                                            st.image(watermarked_img, use_container_width=True)
+                                            st.image(
+                                                watermarked_img,
+                                                use_container_width=True,
+                                            )
 
                                         with col3:
                                             st.markdown("**Extracted Watermark**")
@@ -142,7 +173,9 @@ def display_extract_watermark_page(debug_mode=False):
                                             )
 
                                         img_bytes = io.BytesIO()
-                                        decrypted_watermark_img.save(img_bytes, format="PNG")
+                                        decrypted_watermark_img.save(
+                                            img_bytes, format="PNG"
+                                        )
 
                                         st.download_button(
                                             label="Download Watermark Image",
@@ -152,18 +185,27 @@ def display_extract_watermark_page(debug_mode=False):
                                         )
                                     else:
                                         st.error(
-                                            "Failed to decrypt the watermark. The authentication face may not match closely enough with the one used for embedding or the error tolerance are too low.")
+                                            "Failed to decrypt the watermark. The authentication face may not match closely enough with the one used for embedding or the error tolerance are too low."
+                                        )
                                         if debug_mode:
-                                            st.info("DEBUG: Decryption returned None, suggesting the key is incorrect")
+                                            st.info(
+                                                "DEBUG: Decryption returned None, suggesting the key is incorrect"
+                                            )
                                 except Exception as e:
-                                    st.error(f"Failed to decrypt the watermark: {str(e)}")
+                                    st.error(
+                                        f"Failed to decrypt the watermark: {str(e)}"
+                                    )
                             else:
-                                st.error("Could not extract a watermark from this image. This usually means either:")
-                                st.markdown("""
+                                st.error(
+                                    "Could not extract a watermark from this image. This usually means either:"
+                                )
+                                st.markdown(
+                                    """
                                 - The image doesn't contain a watermark
                                 - The image wasn't watermarked with this application
                                 - The original image was modified after (resized, cropped, compressed)
-                                """)
+                                """
+                                )
 
                 except Exception as e:
                     st.error(f"An error occurred during extraction: {str(e)}")

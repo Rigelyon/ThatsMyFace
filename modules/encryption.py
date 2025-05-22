@@ -18,7 +18,7 @@ def encrypt_watermark(watermark_data: Union[str, bytes], key: bytes) -> bytes:
     """
     # Ensure watermark_data is bytes
     if isinstance(watermark_data, str):
-        watermark_bytes = watermark_data.encode('utf-8')
+        watermark_bytes = watermark_data.encode("utf-8")
     else:
         watermark_bytes = watermark_data
 
@@ -38,6 +38,7 @@ def encrypt_watermark(watermark_data: Union[str, bytes], key: bytes) -> bytes:
     result = iv + encrypted_data
 
     return result
+
 
 def decrypt_watermark(encrypted_data: bytes, key: bytes) -> Optional[bytes]:
     """
