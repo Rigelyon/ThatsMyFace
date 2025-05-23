@@ -8,3 +8,5 @@ scipy>=1.8.0
 pycryptodome>=3.15.0
 matplotlib~=3.10.3
 scikit-image~=0.25.2
+qrcode>=7.4.2
+pyzbar>=0.1.9

@@ -3,9 +3,15 @@ import time
 
 import streamlit as st
 from PIL import Image
+from Crypto.Random import get_random_bytes
 
-from modules.constants import ALPHA, MAX_WATERMARK_RESOLUTION, MAX_WATERMARK_SIZE
 from modules.watermarking import embed_watermark
+from modules.encryption import encrypt_watermark
+from modules.qrcode_generator import text_to_qrcode
+
+
+# Kunci default untuk enkripsi (32 byte)
+DEFAULT_KEY = b"0123456789abcdef0123456789abcdef"
 
 
 def display_watermark_embed_test():
@@ -15,9 +21,9 @@ def display_watermark_embed_test():
     This test allows you to test the watermark embedding functionality and see statistics.
     
     1. Upload an image to watermark
-    2. Upload a watermark image (PNG, JPG, JPEG format)
-    3. Adjust the watermark strength (Alpha)
-    4. The system will embed the watermark and show statistics
+    2. Enter text watermark
+    3. The system will encrypt the text, convert it to QR code, and embed the QR code as watermark
+    4. The watermarked image will be displayed with statistics
     """
     )
 
@@ -31,66 +37,69 @@ def display_watermark_embed_test():
         image = Image.open(image_file)
         st.image(image, caption="Original Image", use_container_width=True)
 
-    # Watermark section
-    st.markdown("### Watermark")
+    # Text watermark section
+    st.markdown("### Text Watermark")
     st.markdown(
         """
-    **Watermark image requirements:**
-    - Format: JPG, JPEG, or PNG
-    - File size: Maximum 2MB
-    - Resolution: Not more than 1000x1000 pixels
+    **Text watermark requirements:**
+    - Maximum 100 characters
+    - The text will be encrypted and converted to QR code
     """
     )
 
-    watermark_data = None
-    watermark_file = st.file_uploader(
-        "Upload image watermark",
-        type=["jpg", "jpeg", "png"],
-        key="embed_test_watermark_image",
+    watermark_text = st.text_area(
+        "Enter text for watermark",
+        max_chars=100,
+        height=100,
+        key="watermark_text_input",
+        value="TestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTest",
     )
 
-    if watermark_file:
-        # Validate file size (2MB = 2 * 1024 * 1024 bytes)
-        if watermark_file.size > MAX_WATERMARK_SIZE:
-            st.error(
-                f"Watermark size exceeds the maximum allowed size ({MAX_WATERMARK_SIZE} MB)."
-            )
-        else:
-            watermark_image = Image.open(watermark_file)
+    qrcode_size = st.slider(
+        "QR Code size (pixels)",
+        min_value=100,
+        max_value=1000,
+        value=300,
+        step=100,
+        help="Size of QR code in pixels (width x height)",
+    )
 
-            # Validate resolution
-            if (
-                watermark_image.width > MAX_WATERMARK_RESOLUTION
-                or watermark_image.height > MAX_WATERMARK_RESOLUTION
-            ):
-                st.error(
-                    f"Watermark image resolution too large ({watermark_image.width}x{watermark_image.height})! Maximum {MAX_WATERMARK_RESOLUTION}x{MAX_WATERMARK_RESOLUTION} pixels."
-                )
-            else:
-                st.image(
-                    watermark_image,
-                    caption=f"Watermark Image ({watermark_image.width}x{watermark_image.height})",
-                    use_container_width=True,
-                    width=200,
-                )
-                st.success(
-                    f"Valid watermark image: {watermark_file.name} ({watermark_image.width}x{watermark_image.height} pixels)"
-                )
+    # Preview QR code if text is entered
+    if watermark_text:
+        # Encrypt the text
+        encrypted_data = encrypt_watermark(watermark_text, DEFAULT_KEY)
 
-                img_byte_arr = io.BytesIO()
-                watermark_image.save(
-                    img_byte_arr,
-                    format=watermark_image.format if watermark_image.format else "PNG",
-                )
-                watermark_data = img_byte_arr.getvalue()
+        # Convert to QR code
+        qr_image = text_to_qrcode(encrypted_data, (qrcode_size, qrcode_size))
+
+        # Display QR code preview
+        st.image(qr_image, caption="QR Code Preview", use_container_width=True)
+
+        # Convert QR code to bytes for embedding
+        img_byte_arr = io.BytesIO()
+        qr_image.save(img_byte_arr, format="PNG")
+        watermark_data = img_byte_arr.getvalue()
+    else:
+        watermark_data = None
 
     # Embed watermark button
-    if st.button("Embed Watermark", disabled=not (image_file and watermark_data)):
+    if st.button("Embed Watermark", disabled=not (image_file and watermark_text)):
         with st.spinner("Embedding watermark..."):
             start_time = time.time()
 
+            # Encrypt the text
+            encrypted_data = encrypt_watermark(watermark_text, DEFAULT_KEY)
+
+            # Convert to QR code
+            qr_image = text_to_qrcode(encrypted_data, (qrcode_size, qrcode_size))
+
+            # Convert QR code to bytes for embedding
+            img_byte_arr = io.BytesIO()
+            qr_image.save(img_byte_arr, format="PNG")
+            watermark_data = img_byte_arr.getvalue()
+
             # Embed watermark
-            watermarked_img = embed_watermark(image, watermark_data)
+            watermarked_img = embed_watermark(image, watermark_data, True)
 
             processing_time = time.time() - start_time
 
@@ -108,6 +117,10 @@ def display_watermark_embed_test():
             with col2:
                 st.markdown("### Watermarked Image")
                 st.image(watermarked_img, use_container_width=True)
+
+            # Display QR code that was embedded
+            st.markdown("### Embedded QR Code")
+            st.image(qr_image, caption="QR Code from Text Watermark", width=300)
 
             # Download watermarked image
             buffered = io.BytesIO()
