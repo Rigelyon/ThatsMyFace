@@ -52,6 +52,7 @@ def display_watermark_embed_test():
         max_chars=100,
         height=100,
         key="watermark_text_input",
+        value="TestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTestTest",
     )
 
     qrcode_size = st.slider(
@@ -72,7 +73,7 @@ def display_watermark_embed_test():
         qr_image = text_to_qrcode(encrypted_data, (qrcode_size, qrcode_size))
 
         # Display QR code preview
-        st.image(qr_image, caption="QR Code Preview", width=300)
+        st.image(qr_image, caption="QR Code Preview", use_container_width=True)
 
         # Convert QR code to bytes for embedding
         img_byte_arr = io.BytesIO()
@@ -98,7 +99,7 @@ def display_watermark_embed_test():
             watermark_data = img_byte_arr.getvalue()
 
             # Embed watermark
-            watermarked_img = embed_watermark(image, watermark_data)
+            watermarked_img = embed_watermark(image, watermark_data, True)
 
             processing_time = time.time() - start_time
 

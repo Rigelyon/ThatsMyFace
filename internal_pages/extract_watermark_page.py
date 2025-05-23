@@ -11,7 +11,6 @@ from modules.utils import deserialize_helper_data, has_face
 from modules.watermarking import extract_watermark
 from modules.qrcode_generator import qrcode_to_text
 
-
 def display_extract_watermark_page(debug_mode=False):
     # Header
     st.title("🔍 Extract Watermark")
@@ -291,7 +290,8 @@ def display_extract_watermark_page(debug_mode=False):
                                 "🔍 Analyzing image for hidden watermarks..."
                             ):
                                 extracted_qrcode = extract_watermark(
-                                    watermarked_img, original_img
+                                    watermarked_img,
+                                    original_img,
                                 )
 
                             if extracted_qrcode:
@@ -455,9 +455,9 @@ def display_extract_watermark_page(debug_mode=False):
                                 st.error("No Watermark Found")
                                 st.info(
                                     "Could not extract a watermark from this image. This could be because:\n"
-                                    "• The image doesn't contain a watermark\n"
-                                    "• The image wasn't watermarked with this application\n"
-                                    "• The image was modified after watermarking (resized, cropped, compressed)"
+                                    "- The image doesn't contain a watermark\n"
+                                    "- The image wasn't watermarked with this application\n"
+                                    "- The image was modified after watermarking (resized, cropped, compressed)"
                                 )
 
                 except Exception as e:

@@ -11,6 +11,9 @@ from modules.constants import (
     MAX_IMAGES,
     MAX_WATERMARK_CHARACTERS,
     QRCODE_SIZE,
+    BLOCK_SIZE,
+    ALPHA,
+    ERROR_TOLERANCE,
 )
 from modules.encryption import encrypt_watermark
 from modules.face_recognition import (
@@ -169,38 +172,7 @@ def display_embed_watermark_page(debug_mode=False):
             )
 
     # Step 2
-    st.header("Step 2: Authentication Settings")
-    st.markdown(
-        "Adjust the slider below to control security vs. convenience:\n"
-        "- Strict (1-30): High security - Requires nearly identical face images\n"
-        "- Balanced (31-70): Good for most uses - Recommended for most people\n"
-        "- Flexible (71-95): More convenient - Works with varied face images"
-    )
-
-    error_tolerance = st.slider(
-        "Security vs. Convenience",
-        min_value=1,
-        max_value=95,
-        value=60,
-        help="Higher values allow more variation in face images but may reduce security",
-    )
-
-    # Show different messages based on slider value
-    if error_tolerance < 30:
-        st.info(
-            "🔒 Strict Security: You've chosen high security. You'll need very similar face images or same photo to extract the watermark."
-        )
-    elif error_tolerance < 70:
-        st.info(
-            "⚖️ Balanced: Good choice for most people. Provides security while allowing some facial variation."
-        )
-    else:
-        st.info(
-            "🔓 Flexible: You've chosen more convenience. This allows more facial variation but may be less secure."
-        )
-
-    # Step 3
-    st.header("Step 3: Enter Watermark Text")
+    st.header("Step 2: Enter Watermark Text")
     st.markdown(
         "Enter the text you want to use as a watermark. This text will be encrypted and converted to a QR code."
     )
@@ -216,7 +188,13 @@ def display_embed_watermark_page(debug_mode=False):
     # Tampilkan preview QR code jika teks telah dimasukkan
     if watermark_text:
         # Buat QR code preview
-        qr_image = text_to_qrcode(watermark_text, (QRCODE_SIZE, QRCODE_SIZE))
+        qr_image = text_to_qrcode(
+            watermark_text,
+            (
+                st.session_state.custom_settings.get("qrcode_size", QRCODE_SIZE),
+                st.session_state.custom_settings.get("qrcode_size", QRCODE_SIZE),
+            ),
+        )
 
         col1, col2 = st.columns([1, 2])
         with col1:
@@ -228,15 +206,17 @@ def display_embed_watermark_page(debug_mode=False):
                 "The text will be encrypted and embedded as a QR code."
             )
 
-    # Step 4
-    st.header("Step 4: Upload Images to Watermark")
+    # Step 3
+    st.header("Step 3: Upload Images to Watermark")
     st.markdown(
         "These are the images that will contain your invisible watermark.\n"
         "You can upload multiple images at once!"
     )
 
     uploaded_files = st.file_uploader(
-        f"Select images to watermark (max {MAX_IMAGES} files)",
+        f"Select images to watermark (max {st.session_state.custom_settings.get(
+            "max_images", MAX_IMAGES
+        )} files)",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
     )
@@ -257,9 +237,9 @@ def display_embed_watermark_page(debug_mode=False):
             if len(uploaded_files) > 4:
                 st.caption(f"... and {len(uploaded_files)-4} more images")
 
-    # Step 5
-    st.header("Step 5: Watermarking Options")
-    auth_required = st.toggle(
+    # Step 4
+    st.header("Step 4: Watermarking Options")
+    auth_required = st.checkbox(
         "Only watermark images that contain faces matching your authentication face",
         value=True,
     )
@@ -268,6 +248,127 @@ def display_embed_watermark_page(debug_mode=False):
         st.info(
             "Smart mode activated: Only images containing a face matching your authentication face will be watermarked."
         )
+    # Advanced Settings
+    st.header("Advanced Settings")
+    show_advanced = st.toggle("Show Advanced Settings", value=False)
+
+    if show_advanced:
+        st.warning(
+            "⚠️ WARNING: Changing these settings may affect the watermark quality and extraction success rate. Only modify if you understand the implications."
+        )
+
+        with st.expander("Advanced Configuration"):
+            st.subheader("1. Authentication Face Matching Tolerance")
+            st.caption(
+                "Adjust the slider below to control security vs. convenience:\n"
+                "- Strict (1-30): High security - Requires nearly identical face images\n"
+                "- Balanced (31-70): Good for most uses - Recommended for most people\n"
+                "- Flexible (71-95): More convenient - Works with varied face images"
+            )
+            # Error Tolerance Setting
+            error_tolerance = st.slider(
+                "Authentication Face Matching Tolerance",
+                min_value=1,
+                max_value=95,
+                value=ERROR_TOLERANCE,
+                help=f"Higher values allow more variation in face images but may reduce security. Default: {ERROR_TOLERANCE}",
+            )
+            st.markdown("---")
+            # QR Code Size Setting
+            st.subheader("2. QR Code Size")
+            st.caption(
+                "Adjust the QR code size for the watermark:\n"
+                "- Small (32-300): Less visible but may be harder to extract\n"
+                "- Medium (301-700): Good balance of visibility and robustness\n"
+                "- Large (701-1024): More robust but more visible in image"
+            )
+            custom_qrcode_size = st.slider(
+                "QR Code Size",
+                min_value=32,
+                max_value=1024,
+                value=QRCODE_SIZE,
+                help=f"Size of the QR code watermark in pixels. Default: {QRCODE_SIZE}",
+            )
+
+            st.markdown("---")
+
+            # Block Size Setting
+            st.subheader("3. Block Size")
+            st.caption(
+                "Control how the watermark is embedded:\n"
+                "- Small (4-8): Better image quality but less robust\n"
+                "- Medium (9-12): Balanced quality and robustness\n"
+                "- Large (13-16): More robust but may affect quality more"
+            )
+            custom_block_size = st.slider(
+                "Block Size",
+                min_value=4,
+                max_value=16,
+                value=BLOCK_SIZE,
+                help=f"Size of image blocks for watermark embedding. Default: {BLOCK_SIZE}",
+            )
+
+            st.markdown("---")
+
+            # Alpha Setting
+            st.subheader("4. Watermark Strength")
+            st.caption(
+                "Set how strongly the watermark is embedded:\n"
+                "- Light (0.1-0.3): Nearly invisible but less robust\n"
+                "- Medium (0.4-0.7): Good balance for most uses\n"
+                "- Strong (0.8-1.0): Very robust but may be noticeable"
+            )
+            custom_alpha = st.slider(
+                "Watermark Strength (Alpha)",
+                min_value=0.1,
+                max_value=1.0,
+                value=ALPHA,
+                step=0.1,
+                help=f"Strength of the watermark embedding. Default: {ALPHA}",
+            )
+
+            st.markdown("---")
+
+            # Max Images Setting
+            st.subheader("5. Maximum Images")
+            st.caption(
+                "Set batch processing limit:\n"
+                "- Small batch (1-20): Fast processing\n"
+                "- Medium batch (21-50): Balanced speed\n"
+                "- Large batch (51-100): Slower but handles more images"
+            )
+            custom_max_images = st.slider(
+                "Maximum Images",
+                min_value=1,
+                max_value=100,
+                value=MAX_IMAGES,
+                help=f"Maximum number of images to process at once. Default: {MAX_IMAGES}",
+            )
+
+            # Store custom values in session state
+            if "custom_settings" not in st.session_state:
+                st.session_state.custom_settings = {}
+
+            st.session_state.custom_settings.update(
+                {
+                    "qrcode_size": custom_qrcode_size,
+                    "block_size": custom_block_size,
+                    "alpha": custom_alpha,
+                    "max_images": custom_max_images,
+                    "error_tolerance": error_tolerance,
+                }
+            )
+    else:
+        # Use default values from constants.py when advanced settings are hidden
+        if "custom_settings" not in st.session_state:
+            st.session_state.custom_settings = {
+                "qrcode_size": QRCODE_SIZE,
+                "block_size": BLOCK_SIZE,
+                "alpha": ALPHA,
+                "max_images": MAX_IMAGES,
+                "error_tolerance": ERROR_TOLERANCE,
+            }
+        error_tolerance = st.session_state.custom_settings["error_tolerance"]
 
     # Process button
     st.write("")  # Add some space
@@ -297,9 +398,11 @@ def display_embed_watermark_page(debug_mode=False):
             st.error("Please enter watermark text.")
         elif not uploaded_files:
             st.error("Please upload at least one image to watermark.")
-        elif len(uploaded_files) > MAX_IMAGES:
+        elif len(uploaded_files) > st.session_state.custom_settings.get(
+            "max_images", MAX_IMAGES
+        ):
             st.error(
-                f"Maximum {MAX_IMAGES} images allowed. Please reduce the number of uploads."
+                f"Maximum {st.session_state.custom_settings.get('max_images', MAX_IMAGES)} images allowed. Please reduce the number of uploads."
             )
         else:
             try:
@@ -317,7 +420,12 @@ def display_embed_watermark_page(debug_mode=False):
                     with st.spinner(
                         "🔑 Generating secure encryption key from your face..."
                     ):
-                        norm_tolerance = error_tolerance / 100.0
+                        norm_tolerance = (
+                            st.session_state.custom_settings.get(
+                                "error_tolerance", ERROR_TOLERANCE
+                            )
+                            / 100.0
+                        )
                         encryption_key, helper_data = generate_key_with_helper(
                             embedding, norm_tolerance
                         )
@@ -358,7 +466,15 @@ def display_embed_watermark_page(debug_mode=False):
                             watermark_text, encryption_key
                         )
                         qr_watermark = text_to_qrcode(
-                            encrypted_data, (QRCODE_SIZE, QRCODE_SIZE)
+                            encrypted_data,
+                            (
+                                st.session_state.custom_settings.get(
+                                    "qrcode_size", QRCODE_SIZE
+                                ),
+                                st.session_state.custom_settings.get(
+                                    "qrcode_size", QRCODE_SIZE
+                                ),
+                            ),
                         )
 
                         # Konversi ke bytes
@@ -366,11 +482,23 @@ def display_embed_watermark_page(debug_mode=False):
                         qr_watermark.save(qr_bytes, format="PNG")
                         watermark_data = qr_bytes.getvalue()
 
-                    for i, uploaded_file in enumerate(uploaded_files[:MAX_IMAGES]):
+                    for i, uploaded_file in enumerate(
+                        uploaded_files[
+                            : st.session_state.custom_settings.get(
+                                "max_images", MAX_IMAGES
+                            )
+                        ]
+                    ):
                         status_text.info(
-                            f"Processing image {i + 1}/{len(uploaded_files[:MAX_IMAGES])}: {uploaded_file.name[:30]}{'...' if len(uploaded_file.name) > 30 else ''}"
+                            f"Processing image {i + 1}/{len(uploaded_files[:st.session_state.custom_settings.get('max_images', MAX_IMAGES)])}: {uploaded_file.name[:30]}{'...' if len(uploaded_file.name) > 30 else ''}"
                         )
-                        progress_value = (i + 1) / len(uploaded_files[:MAX_IMAGES])
+                        progress_value = (i + 1) / len(
+                            uploaded_files[
+                                : st.session_state.custom_settings.get(
+                                    "max_images", MAX_IMAGES
+                                )
+                            ]
+                        )
                         progress_bar.progress(progress_value)
 
                         # Load image

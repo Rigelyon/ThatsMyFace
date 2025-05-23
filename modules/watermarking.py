@@ -2,8 +2,22 @@ import numpy as np
 from PIL import Image
 import io
 from scipy.fftpack import dct, idct
+import streamlit as st
 
 from modules.constants import BLOCK_SIZE, ALPHA
+
+
+def get_watermark_settings():
+    """
+    Mengambil pengaturan watermark dari session state atau menggunakan nilai default
+    """
+    if "custom_settings" in st.session_state:
+        settings = st.session_state.custom_settings
+        return {
+            "block_size": settings.get("block_size", BLOCK_SIZE),
+            "alpha": settings.get("alpha", ALPHA),
+        }
+    return {"block_size": BLOCK_SIZE, "alpha": ALPHA}
 
 
 def rgb_to_ycbcr(img):
@@ -118,7 +132,7 @@ def resize_watermark(watermark, target_height, target_width, preserve_ratio=Fals
         return watermark_resized
 
 
-def embed_watermark(image, watermark_data, preserve_ratio=False):
+def embed_watermark(image, watermark_data, preserve_ratio=False, custom_settings=None):
     """
     Sisipkan watermark ke dalam gambar
 
@@ -126,10 +140,16 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
     image (PIL.Image.Image): Gambar asli dalam format RGB
     watermark_data (bytes atau PIL.Image.Image): Data watermark
     preserve_ratio (bool): Jika True, watermark akan mempertahankan aspect ratio
+    custom_settings (dict): Pengaturan kustom untuk override nilai default
 
     Returns:
     PIL.Image.Image: Gambar hasil watermarking
     """
+    # Dapatkan pengaturan yang akan digunakan
+    settings = custom_settings if custom_settings else get_watermark_settings()
+    block_size = settings.get("block_size", BLOCK_SIZE)
+    alpha = settings.get("alpha", ALPHA)
+
     # Pastikan gambar dalam format RGB
     image = image.convert("RGB")
 
@@ -150,8 +170,8 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
 
     # Hitung jumlah blok dalam gambar
     height, width = Y.shape
-    num_blocks_h = height // BLOCK_SIZE
-    num_blocks_w = width // BLOCK_SIZE
+    num_blocks_h = height // block_size
+    num_blocks_w = width // block_size
 
     # Ukuran watermark harus sesuai dengan jumlah blok dalam gambar
     watermark_resized = resize_watermark(
@@ -159,13 +179,13 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
     )
     watermark_array = np.array(watermark_resized) / 255.0  # Normalisasi ke [0, 1]
 
-    # Iterasi melalui setiap blok 8x8
+    # Iterasi melalui setiap blok
     for i in range(num_blocks_h):
         for j in range(num_blocks_w):
-            # Ekstrak blok 8x8 dari channel Y
+            # Ekstrak blok dari channel Y
             block = Y[
-                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
-                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+                i * block_size : (i + 1) * block_size,
+                j * block_size : (j + 1) * block_size,
             ]
 
             # Terapkan DCT ke blok
@@ -175,7 +195,7 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
             U, S, Vt = np.linalg.svd(dct_block, full_matrices=True)
 
             # Modifikasi nilai singular dengan nilai watermark
-            S[0] += ALPHA * watermark_array[i, j]
+            S[0] += alpha * watermark_array[i, j]
 
             # Rekonstruksi blok dengan inverse SVD
             modified_dct_block = np.dot(U, np.dot(np.diag(S), Vt))
@@ -185,8 +205,8 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
 
             # Ganti blok asli dengan blok yang telah dimodifikasi
             Y[
-                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
-                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+                i * block_size : (i + 1) * block_size,
+                j * block_size : (j + 1) * block_size,
             ] = modified_block
 
     # Ganti channel Y asli dengan Y yang telah dimodifikasi
@@ -201,17 +221,23 @@ def embed_watermark(image, watermark_data, preserve_ratio=False):
     return watermarked_img
 
 
-def extract_watermark(watermarked_image, original_image):
+def extract_watermark(watermarked_image, original_image, custom_settings=None):
     """
     Ekstrak watermark dari gambar yang sudah disisipkan watermark
 
     Parameters:
     watermarked_image (PIL.Image.Image): Gambar yang disisipi watermark
     original_image (PIL.Image.Image): Gambar asli sebelum disisipi watermark
+    custom_settings (dict): Pengaturan kustom untuk override nilai default
 
     Returns:
     PIL.Image.Image: Watermark hasil ekstraksi
     """
+    # Dapatkan pengaturan yang akan digunakan
+    settings = custom_settings if custom_settings else get_watermark_settings()
+    block_size = settings.get("block_size", BLOCK_SIZE)
+    alpha = settings.get("alpha", ALPHA)
+
     # Pastikan kedua gambar dalam format RGB
     watermarked_image = watermarked_image.convert("RGB")
     original_image = original_image.convert("RGB")
@@ -226,23 +252,23 @@ def extract_watermark(watermarked_image, original_image):
 
     # Hitung jumlah blok dalam gambar
     height, width = Y_watermarked.shape
-    num_blocks_h = height // BLOCK_SIZE
-    num_blocks_w = width // BLOCK_SIZE
+    num_blocks_h = height // block_size
+    num_blocks_w = width // block_size
 
     # Buat array untuk menyimpan hasil ekstraksi watermark
     extracted_watermark = np.zeros((num_blocks_h, num_blocks_w))
 
-    # Iterasi melalui setiap blok 8x8
+    # Iterasi melalui setiap blok
     for i in range(num_blocks_h):
         for j in range(num_blocks_w):
-            # Ekstrak blok 8x8 dari kedua gambar
+            # Ekstrak blok dari kedua gambar
             block_watermarked = Y_watermarked[
-                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
-                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+                i * block_size : (i + 1) * block_size,
+                j * block_size : (j + 1) * block_size,
             ]
             block_original = Y_original[
-                i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE,
-                j * BLOCK_SIZE : (j + 1) * BLOCK_SIZE,
+                i * block_size : (i + 1) * block_size,
+                j * block_size : (j + 1) * block_size,
             ]
 
             # Terapkan DCT ke blok
@@ -256,7 +282,7 @@ def extract_watermark(watermarked_image, original_image):
             _, S_original, _ = np.linalg.svd(dct_block_original, full_matrices=True)
 
             # Ekstrak watermark dengan menghitung selisih singular value yang dimodifikasi
-            extracted_watermark[i, j] = (S_watermarked[0] - S_original[0]) / ALPHA
+            extracted_watermark[i, j] = (S_watermarked[0] - S_original[0]) / alpha
 
     # Normalisasi hasil ke range [0, 255]
     extracted_watermark = np.clip(extracted_watermark, 0, 1)

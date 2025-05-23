@@ -4,6 +4,8 @@ import io
 from typing import Union, Tuple
 import base64
 
+from pyzbar.pyzbar import decode
+
 
 def text_to_qrcode(
     text: Union[str, bytes], size: Tuple[int, int] = (300, 300)
@@ -53,9 +55,6 @@ def qrcode_to_text(qr_image: Image.Image) -> str:
         Teks yang terkandung dalam QR code
     """
     try:
-        # Gunakan pustaka pyzbar untuk mendekode QR code
-        from pyzbar.pyzbar import decode
-
         # Decode QR code
         decoded_data = decode(qr_image)
 
