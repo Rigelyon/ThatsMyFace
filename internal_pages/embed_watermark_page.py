@@ -275,10 +275,10 @@ def display_embed_watermark_page(debug_mode=False):
         with st.expander("Advanced Configuration"):
             st.subheader("1. Authentication Face Matching Tolerance")
             st.caption(
-                "Adjust the slider below to control security vs. convenience:\n"
-                "- Strict (1-30): High security - Requires nearly identical face images\n"
-                "- Balanced (31-70): Good for most uses - Recommended for most people\n"
-                "- Flexible (71-95): More convenient - Works with varied face images"
+                "Adjust the slider below to control security vs. convenience. This is important if you want to use different photos of the same person to extract the watermark:\n"
+                "- Strict (1-30): High security - Requires nearly identical face images or if you want to use same photo for authentication and watermark extraction\n"
+                "- Balanced (31-70): Good for most uses - Recommended for most people. Use this if you don't know which value to use\n"
+                "- Flexible (71-95): More convenient - Works with varied face images. But security is compromised\n"
             )
             # Error Tolerance Setting
             error_tolerance = st.slider(
@@ -292,14 +292,17 @@ def display_embed_watermark_page(debug_mode=False):
             # QR Code Size Setting
             st.subheader("2. QR Code Size")
             st.caption(
-                "Adjust the QR code size for the watermark:\n"
+                "Adjust the QR code size for the watermark. "
+                "Watermarking compress the image of QR code. "
+                "The larger the QR code, the more visible it will be in the image, "
+                "the less the QR code, more difficult to extract the watermark:\n"
                 "- Small (32-300): Less visible but may be harder to extract\n"
                 "- Medium (301-700): Good balance of visibility and robustness\n"
-                "- Large (701-1024): More robust but more visible in image"
+                "- Large (701-1024): More robust but and more visible in image"
             )
             custom_qrcode_size = st.slider(
                 "QR Code Size",
-                min_value=32,
+                min_value=128,
                 max_value=1024,
                 value=QRCODE_SIZE,
                 help=f"Size of the QR code watermark in pixels. Default: {QRCODE_SIZE}",
@@ -310,7 +313,10 @@ def display_embed_watermark_page(debug_mode=False):
             # Block Size Setting
             st.subheader("3. Block Size")
             st.caption(
-                "Control how the watermark is embedded:\n"
+                "Control how the watermark is embedded. "
+                "The method of watermarking is split the image into blocks and embed the watermark into each block. "
+                "The larger the block, the more robust the watermark, but more visible it will be in the image. "
+                "This value also affect the QR code qualiy:\n"
                 "- Small (4-8): Better image quality but less robust\n"
                 "- Medium (9-12): Balanced quality and robustness\n"
                 "- Large (13-16): More robust but may affect quality more"
@@ -319,6 +325,7 @@ def display_embed_watermark_page(debug_mode=False):
                 "Block Size",
                 min_value=4,
                 max_value=16,
+                step=2,
                 value=BLOCK_SIZE,
                 help=f"Size of image blocks for watermark embedding. Default: {BLOCK_SIZE}",
             )
