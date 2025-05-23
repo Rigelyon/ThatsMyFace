@@ -43,6 +43,21 @@ def display_embed_watermark_page(debug_mode=False):
             "not_watermarked_images": [],
         }
 
+    # Store custom values in session state
+    if "custom_settings" not in st.session_state:
+        st.session_state.custom_settings = {}
+
+    # Use default values from constants.py when advanced settings are hidden
+    if "custom_settings" not in st.session_state:
+        st.session_state.custom_settings = {
+            "qrcode_size": QRCODE_SIZE,
+            "block_size": BLOCK_SIZE,
+            "alpha": ALPHA,
+            "max_images": MAX_IMAGES,
+            "error_tolerance": ERROR_TOLERANCE,
+        }
+
+
     # Menampilkan hasil jika proses sudah selesai
     if st.session_state.embed_state["processing_completed"]:
         st.success("Watermarking process completed successfully!")
@@ -345,10 +360,6 @@ def display_embed_watermark_page(debug_mode=False):
                 help=f"Maximum number of images to process at once. Default: {MAX_IMAGES}",
             )
 
-            # Store custom values in session state
-            if "custom_settings" not in st.session_state:
-                st.session_state.custom_settings = {}
-
             st.session_state.custom_settings.update(
                 {
                     "qrcode_size": custom_qrcode_size,
@@ -358,18 +369,7 @@ def display_embed_watermark_page(debug_mode=False):
                     "error_tolerance": error_tolerance,
                 }
             )
-    else:
-        # Use default values from constants.py when advanced settings are hidden
-        if "custom_settings" not in st.session_state:
-            st.session_state.custom_settings = {
-                "qrcode_size": QRCODE_SIZE,
-                "block_size": BLOCK_SIZE,
-                "alpha": ALPHA,
-                "max_images": MAX_IMAGES,
-                "error_tolerance": ERROR_TOLERANCE,
-            }
-        error_tolerance = st.session_state.custom_settings["error_tolerance"]
-
+    
     # Process button
     st.write("")  # Add some space
     process_btn = st.button(
