@@ -11,6 +11,7 @@ from modules.utils import deserialize_helper_data, has_face
 from modules.watermarking import extract_watermark
 from modules.qrcode_generator import qrcode_to_text
 
+
 def display_extract_watermark_page(debug_mode=False):
     # Header
     st.title("🔍 Extract Watermark")
@@ -298,6 +299,54 @@ def display_extract_watermark_page(debug_mode=False):
                                 if debug_mode:
                                     st.write("DEBUG: QR code extraction successful!")
 
+                                # Simpan hasil gambar ke session state (selalu, jika QR code berhasil diekstrak)
+                                img_bytes = io.BytesIO()
+                                extracted_qrcode.save(img_bytes, format="PNG")
+                                st.session_state.extract_state[
+                                    "extracted_watermark_bytes"
+                                ] = img_bytes.getvalue()
+                                st.session_state.extract_state[
+                                    "extracted_watermark"
+                                ] = extracted_qrcode
+                                st.session_state.extract_state[
+                                    "extraction_completed"
+                                ] = True
+
+                                original_bytes = io.BytesIO()
+                                watermarked_bytes = io.BytesIO()
+                                original_img.save(original_bytes, format="PNG")
+                                watermarked_img.save(watermarked_bytes, format="PNG")
+                                st.session_state.extract_state["original_image"] = (
+                                    original_bytes.getvalue()
+                                )
+                                st.session_state.extract_state["watermarked_image"] = (
+                                    watermarked_bytes.getvalue()
+                                )
+
+                                # Tampilkan hasil gambar (selalu tampil jika QR code berhasil diekstrak)
+                                st.title("🎉 Extraction Result")
+                                st.subheader("Extraction Results")
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.subheader("📄 Original Image")
+                                    st.image(original_img, use_container_width=True)
+                                with col2:
+                                    st.subheader("💧 Watermarked Image")
+                                    st.image(watermarked_img, use_container_width=True)
+                                with col3:
+                                    st.subheader("✨ Extracted QR Code")
+                                    st.image(extracted_qrcode, use_container_width=True)
+
+                                st.download_button(
+                                    label="⬇️ Download QR Code",
+                                    data=st.session_state.extract_state[
+                                        "extracted_watermark_bytes"
+                                    ],
+                                    file_name="extracted_qrcode.png",
+                                    mime="image/png",
+                                    key="download_qrcode",
+                                )
+
                                 # Dekode QR code & dekripsi teks watermark
                                 with st.spinner(
                                     "🔓 Decoding and decrypting watermark..."
@@ -318,37 +367,6 @@ def display_extract_watermark_page(debug_mode=False):
                                                 decrypted_text = decrypted_text.decode(
                                                     "utf-8"
                                                 )
-
-                                                st.title(
-                                                    "🎉 Watermark Extracted Successfully!"
-                                                )
-
-                                                # Results in a visually appealing container
-                                                st.subheader("Extraction Results")
-
-                                                col1, col2, col3 = st.columns(3)
-                                                with col1:
-                                                    st.subheader("📄 Original Image")
-                                                    st.image(
-                                                        original_img,
-                                                        use_container_width=True,
-                                                    )
-
-                                                with col2:
-                                                    st.subheader("💧 Watermarked Image")
-                                                    st.image(
-                                                        watermarked_img,
-                                                        use_container_width=True,
-                                                    )
-
-                                                with col3:
-                                                    st.subheader("✨ Extracted QR Code")
-                                                    st.image(
-                                                        extracted_qrcode,
-                                                        use_container_width=True,
-                                                    )
-
-                                                # Display extracted text
                                                 st.subheader("Extracted Watermark Text")
                                                 st.text_area(
                                                     "Decrypted text:",
@@ -356,97 +374,22 @@ def display_extract_watermark_page(debug_mode=False):
                                                     height=150,
                                                     disabled=True,
                                                 )
-
-                                                # QR code download button
-                                                img_bytes = io.BytesIO()
-                                                extracted_qrcode.save(
-                                                    img_bytes, format="PNG"
-                                                )
-
-                                                # Save data dalam session state
-                                                st.session_state.extract_state[
-                                                    "extracted_watermark_bytes"
-                                                ] = img_bytes.getvalue()
-                                                st.session_state.extract_state[
-                                                    "extracted_watermark"
-                                                ] = extracted_qrcode
                                                 st.session_state.extract_state[
                                                     "extracted_text"
                                                 ] = decrypted_text
-                                                st.session_state.extract_state[
-                                                    "extraction_completed"
-                                                ] = True
-
-                                                # Save gambar original dan watermarked dalam bytes
-                                                original_bytes = io.BytesIO()
-                                                watermarked_bytes = io.BytesIO()
-                                                original_img.save(
-                                                    original_bytes, format="PNG"
-                                                )
-                                                watermarked_img.save(
-                                                    watermarked_bytes, format="PNG"
-                                                )
-
-                                                st.session_state.extract_state[
-                                                    "original_image"
-                                                ] = original_bytes.getvalue()
-                                                st.session_state.extract_state[
-                                                    "watermarked_image"
-                                                ] = watermarked_bytes.getvalue()
-
-                                                st.download_button(
-                                                    label="⬇️ Download QR Code",
-                                                    data=st.session_state.extract_state[
-                                                        "extracted_watermark_bytes"
-                                                    ],
-                                                    file_name="extracted_qrcode.png",
-                                                    mime="image/png",
-                                                    key="download_qrcode",
-                                                )
                                             else:
                                                 st.error("Decryption Failed")
                                                 st.info(
                                                     "Failed to decrypt the watermark text. This usually happens when:\n"
                                                     "- The face doesn't match closely enough with the one used for embedding\n"
                                                     "- The error tolerance was set too low during embedding\n"
-                                                    "- The helper data file doesn't match this watermarked image"
+                                                    "- The helper data file doesn't match this watermarked image\n"
                                                 )
                                         else:
                                             st.error("QR Code Decoding Failed")
                                             st.info(
                                                 "Could not decode QR code from extracted watermark. The watermark might be damaged."
                                             )
-
-                                            # Simpan QR code meskipun tidak bisa didekode
-                                            img_bytes = io.BytesIO()
-                                            extracted_qrcode.save(
-                                                img_bytes, format="PNG"
-                                            )
-                                            st.session_state.extract_state[
-                                                "extracted_watermark_bytes"
-                                            ] = img_bytes.getvalue()
-                                            st.session_state.extract_state[
-                                                "extracted_watermark"
-                                            ] = extracted_qrcode
-                                            st.session_state.extract_state[
-                                                "extraction_completed"
-                                            ] = True
-
-                                            original_bytes = io.BytesIO()
-                                            watermarked_bytes = io.BytesIO()
-                                            original_img.save(
-                                                original_bytes, format="PNG"
-                                            )
-                                            watermarked_img.save(
-                                                watermarked_bytes, format="PNG"
-                                            )
-                                            st.session_state.extract_state[
-                                                "original_image"
-                                            ] = original_bytes.getvalue()
-                                            st.session_state.extract_state[
-                                                "watermarked_image"
-                                            ] = watermarked_bytes.getvalue()
-
                                     except Exception as e:
                                         st.error(
                                             f"Decryption Error - Failed to decrypt the watermark: {str(e)}"
