@@ -20,7 +20,21 @@ git clone https://github.com/Rigelyon/ThatsMyFace.git
 cd ThatsMyFace
 ```
 
-2. Install the required dependencies:
+2. Create Virtual Environment:
+```
+python -m venv .venv
+```
+
+3. Activate the Virtual Environment:
+```
+# On Linux
+source .venv/bin/activate
+
+# On Windows
+.venv\Scripts\activate
+```
+
+4. Install the required dependencies:
 ```
 pip install -r requirements.txt
 ```
