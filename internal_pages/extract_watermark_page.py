@@ -193,13 +193,13 @@ def display_extract_watermark_page(debug_mode=False):
         warning_message = "Please complete all required fields before extracting:"
         missing_items = []
         if not auth_face:
-            missing_items.append("• Upload an authentication face image")
+            missing_items.append("- Upload an authentication face image")
         if not helper_file:
-            missing_items.append("• Upload the helper data file")
+            missing_items.append("- Upload the helper data file")
         if not original_file:
-            missing_items.append("• Upload the original image")
+            missing_items.append("- Upload the original image")
         if not watermarked_file:
-            missing_items.append("• Upload the watermarked image")
+            missing_items.append("- Upload the watermarked image")
 
         st.warning(warning_message + "\n" + "\n".join(missing_items))
 
